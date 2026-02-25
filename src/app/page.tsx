@@ -2796,7 +2796,7 @@ export default function SalonApp() {
                     <button 
                       key={p.id}
                       className="p-4 rounded-xl border-2 border-transparent hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all text-left group relative overflow-hidden"
-                      onClick={() => addToCart(s, "servico")}
+                      onClick={() => addToCart(p, "produto")}
                     >
                       <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Plus className="w-4 h-4 text-green-600" />
@@ -3343,6 +3343,7 @@ export default function SalonApp() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Editar Profissional' : 'Novo Profissional'}</DialogTitle>
+            <DialogDescription>Cadastre um novo profissional para o salão.</DialogDescription>
           </DialogHeader>
           <Form {...profissionalForm}>
             <form onSubmit={profissionalForm.handleSubmit(handleSaveProfissional)} className="space-y-4">
@@ -3359,7 +3360,7 @@ export default function SalonApp() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <FormField
                   control={profissionalForm.control}
                   name="celular"
@@ -3400,12 +3401,12 @@ export default function SalonApp() {
                   )}
                 />
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <FormField
                   control={profissionalForm.control}
                   name="endereco"
                   render={({ field }) => (
-                    <FormItem className="col-span-3">
+                    <FormItem className="sm:col-span-3">
                       <FormLabel>Endereço</FormLabel>
                       <FormControl>
                         <Input placeholder="Logradouro" {...field} onChange={e => field.onChange(toUpper(e.target.value))} />
@@ -3428,7 +3429,7 @@ export default function SalonApp() {
                   )}
                 />
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <FormField
                   control={profissionalForm.control}
                   name="bairro"
@@ -3446,7 +3447,7 @@ export default function SalonApp() {
                   control={profissionalForm.control}
                   name="cidade"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="sm:col-span-2">
                       <FormLabel>Cidade</FormLabel>
                       <FormControl>
                         <Input placeholder="Cidade" {...field} onChange={e => field.onChange(toUpper(e.target.value))} />
@@ -3468,21 +3469,8 @@ export default function SalonApp() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={profissionalForm.control}
-                  name="cep"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>CEP</FormLabel>
-                      <FormControl>
-                        <Input placeholder="00000-000" {...field} onChange={e => field.onChange(maskCep(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <FormField
                   control={profissionalForm.control}
                   name="status"
