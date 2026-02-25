@@ -4378,4 +4378,3 @@ export default function SalonApp() {
     </div>
   );
 }
-// Build: Wed Feb 25 15:09:58 UTC 2026
