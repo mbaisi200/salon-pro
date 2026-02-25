@@ -2648,92 +2648,56 @@ export default function SalonApp() {
 
         {showRelatorioEstoque ? (
           // RELATÓRIO DE VENDAS POR PRODUTO
-          <div className="space-y-6">
-            {/* Filtros */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Filtros</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <Label>Data Início</Label>
-                    <Input 
-                      type="date" 
-                      value={filtroDataInicio}
-                      onChange={(e) => setFiltroDataInicio(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>Data Fim</Label>
-                    <Input 
-                      type="date" 
-                      value={filtroDataFim}
-                      onChange={(e) => setFiltroDataFim(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>Produto</Label>
-                    <Select value={filtroProduto} onValueChange={setFiltroProduto}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todos" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos os Produtos</SelectItem>
-                        {produtos.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-end">
-                    <Button variant="outline" onClick={() => {
-                      setFiltroDataInicio('');
-                      setFiltroDataFim('');
-                      setFiltroProduto('todos');
-                    }}>
-                      <X className="w-4 h-4 mr-2" />
-                      Limpar
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="space-y-4">
+            {/* Filtros Compactos */}
+            <div className="flex flex-wrap gap-2 items-end p-3 bg-muted/30 rounded-lg">
+              <div className="flex-1 min-w-[120px]">
+                <Label className="text-xs">Data Início</Label>
+                <Input type="date" value={filtroDataInicio} onChange={(e) => setFiltroDataInicio(e.target.value)} className="h-8" />
+              </div>
+              <div className="flex-1 min-w-[120px]">
+                <Label className="text-xs">Data Fim</Label>
+                <Input type="date" value={filtroDataFim} onChange={(e) => setFiltroDataFim(e.target.value)} className="h-8" />
+              </div>
+              <div className="flex-1 min-w-[180px]">
+                <Label className="text-xs">Produto</Label>
+                <Select value={filtroProduto} onValueChange={setFiltroProduto}>
+                  <SelectTrigger className="h-8"><SelectValue placeholder="Todos" /></SelectTrigger>
+                  <SelectContent className="max-h-48">
+                    <SelectItem value="todos">Todos os Produtos</SelectItem>
+                    {produtos.map(p => (<SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" size="sm" className="h-8" onClick={() => { setFiltroDataInicio(''); setFiltroDataFim(''); setFiltroProduto('todos'); }}>
+                <X className="w-3 h-3 mr-1" /> Limpar
+              </Button>
+              <Button variant="outline" size="sm" className="h-8" onClick={() => {
+                const vendas = getVendasPorProduto();
+                const total = vendas.reduce((acc, v) => acc + v.total, 0);
+                const qtd = vendas.reduce((acc, v) => acc + v.qtd, 0);
+                const texto = `RELATÓRIO DE VENDAS POR PRODUTO\nPeríodo: ${filtroDataInicio || 'Início'} a ${filtroDataFim || 'Hoje'}\n\n${vendas.map(v => `${v.nome}: ${v.qtd} un - R$ ${v.total.toFixed(2)}`).join('\n')}\n\nTOTAL: ${qtd} itens - R$ ${total.toFixed(2)}`;
+                const blob = new Blob([texto], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `relatorio_vendas_${format(new Date(), 'ddMMyyyy')}.txt`;
+                a.click();
+              }}>
+                <FileText className="w-3 h-3 mr-1" /> PDF
+              </Button>
+            </div>
 
             {/* Resumo */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="bg-primary/5">
-                <CardContent className="p-4">
-                  <p className="text-sm text-muted-foreground">Total Vendido</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {getVendasPorProduto().reduce((acc, v) => acc + v.qtd, 0)} itens
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="bg-green-500/5">
-                <CardContent className="p-4">
-                  <p className="text-sm text-muted-foreground">Faturamento</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    R$ {getVendasPorProduto().reduce((acc, v) => acc + v.total, 0).toFixed(2)}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="bg-accent/5">
-                <CardContent className="p-4">
-                  <p className="text-sm text-muted-foreground">Produtos</p>
-                  <p className="text-2xl font-bold text-accent">
-                    {getVendasPorProduto().length}
-                  </p>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="bg-primary/5"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Total Vendido</p><p className="text-lg font-bold text-primary">{getVendasPorProduto().reduce((acc, v) => acc + v.qtd, 0)} itens</p></CardContent></Card>
+              <Card className="bg-green-500/5"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Faturamento</p><p className="text-lg font-bold text-green-600">R$ {getVendasPorProduto().reduce((acc, v) => acc + v.total, 0).toFixed(2)}</p></CardContent></Card>
+              <Card className="bg-accent/5"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Produtos</p><p className="text-lg font-bold">{getVendasPorProduto().length}</p></CardContent></Card>
             </div>
 
             {/* Tabela de Vendas */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Vendas por Produto</CardTitle>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
