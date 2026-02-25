@@ -493,14 +493,51 @@ export default function SalonApp() {
     }
   }, [db, editingItem, salaoForm]);
   
+  // Função auxiliar para excluir todos os documentos de uma subcoleção
+  const deleteSubcollection = async (salaoId: string, subcollectionName: string) => {
+    const subcollectionRef = collection(db, 'saloes', salaoId, subcollectionName);
+    const snapshot = await getDocs(subcollectionRef);
+    const deletePromises = snapshot.docs.map(docSnapshot => deleteDoc(docSnapshot.ref));
+    await Promise.all(deletePromises);
+  };
+
   const handleDeleteSalao = useCallback(async () => {
     if (!deleteConfirm) return;
-    
+
+    const salaoId = deleteConfirm.id;
+
     try {
-      await deleteDoc(doc(db, 'saloes', deleteConfirm.id));
+      // Excluir todas as subcoleções do salão
+      const subcolecoes = [
+        'clientes',
+        'profissionais',
+        'servicos',
+        'agendamentos',
+        'financeiro',
+        'produtos',
+        'caixaHistorico'
+      ];
+
+      // Excluir cada subcoleção
+      for (const subcolecao of subcolecoes) {
+        await deleteSubcollection(salaoId, subcolecao);
+      }
+
+      // Excluir documento de config (caixa)
+      try {
+        await deleteDoc(doc(db, 'saloes', salaoId, 'config', 'caixa'));
+      } catch (e) {
+        // Ignorar se não existir
+      }
+
+      // Por fim, excluir o documento do salão
+      await deleteDoc(doc(db, 'saloes', salaoId));
+
       setDeleteConfirm(null);
+      alert('Salão e todos os seus dados foram excluídos com sucesso!');
     } catch (error) {
       console.error('Erro ao excluir salão:', error);
+      alert('Erro ao excluir salão. Tente novamente.');
     }
   }, [db, deleteConfirm]);
   
