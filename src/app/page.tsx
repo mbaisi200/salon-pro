@@ -2985,6 +2985,189 @@ export default function SalonApp() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Relatório de Inventário */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Relatório de Inventário
+            </CardTitle>
+            <CardDescription>Visão geral do estoque atual</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Totais */}
+            <div className="grid grid-cols-4 gap-4 mb-6 p-4 bg-muted/30 rounded-lg">
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">Total de Produtos</p>
+                <p className="text-2xl font-bold">{produtos.length}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">Total de Unidades</p>
+                <p className="text-2xl font-bold">
+                  {produtos.reduce((acc, p) => acc + (p.quantidadeEstoque || 0), 0)}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">Valor Total Custo</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  R$ {produtos.reduce((acc, p) => acc + ((p.precoCusto || 0) * (p.quantidadeEstoque || 0)), 0).toFixed(2)}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">Valor Total Venda</p>
+                <p className="text-2xl font-bold text-green-600">
+                  R$ {produtos.reduce((acc, p) => acc + ((p.precoVenda || 0) * (p.quantidadeEstoque || 0)), 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            {/* Tabela de Inventário */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 font-medium">Produto</th>
+                    <th className="text-left p-3 font-medium">Categoria</th>
+                    <th className="text-center p-3 font-medium">Qtd.</th>
+                    <th className="text-right p-3 font-medium">P. Custo</th>
+                    <th className="text-right p-3 font-medium">P. Venda</th>
+                    <th className="text-right p-3 font-medium">Total Custo</th>
+                    <th className="text-right p-3 font-medium">Total Venda</th>
+                    <th className="text-right p-3 font-medium">Lucro</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {produtos.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center p-8 text-muted-foreground">
+                        Nenhum produto cadastrado
+                      </td>
+                    </tr>
+                  ) : (
+                    produtos.map((p: any) => {
+                      const totalCusto = (p.precoCusto || 0) * (p.quantidadeEstoque || 0);
+                      const totalVenda = (p.precoVenda || 0) * (p.quantidadeEstoque || 0);
+                      const lucro = totalVenda - totalCusto;
+                      
+                      return (
+                        <tr key={p.id} className="border-b hover:bg-muted/20">
+                          <td className="p-3">
+                            <div className="font-medium">{p.nome}</div>
+                            {p.quantidadeEstoque <= p.estoqueMinimo && (
+                              <Badge variant="destructive" className="text-xs mt-1">Estoque Baixo</Badge>
+                            )}
+                          </td>
+                          <td className="p-3 text-muted-foreground">{p.categoria || '-'}</td>
+                          <td className="p-3 text-center font-bold">{p.quantidadeEstoque}</td>
+                          <td className="p-3 text-right">R$ {(p.precoCusto || 0).toFixed(2)}</td>
+                          <td className="p-3 text-right">R$ {(p.precoVenda || 0).toFixed(2)}</td>
+                          <td className="p-3 text-right font-medium text-blue-600">R$ {totalCusto.toFixed(2)}</td>
+                          <td className="p-3 text-right font-medium text-green-600">R$ {totalVenda.toFixed(2)}</td>
+                          <td className="p-3 text-right font-bold text-green-600">R$ {lucro.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-primary/10 font-bold">
+                    <td colSpan={2} className="p-3">TOTAL</td>
+                    <td className="p-3 text-center">
+                      {produtos.reduce((acc, p) => acc + (p.quantidadeEstoque || 0), 0)}
+                    </td>
+                    <td className="p-3"></td>
+                    <td className="p-3"></td>
+                    <td className="p-3 text-right text-blue-600">
+                      R$ {produtos.reduce((acc, p) => acc + ((p.precoCusto || 0) * (p.quantidadeEstoque || 0)), 0).toFixed(2)}
+                    </td>
+                    <td className="p-3 text-right text-green-600">
+                      R$ {produtos.reduce((acc, p) => acc + ((p.precoVenda || 0) * (p.quantidadeEstoque || 0)), 0).toFixed(2)}
+                    </td>
+                    <td className="p-3 text-right text-green-600">
+                      R$ {produtos.reduce((acc, p) => acc + (((p.precoVenda || 0) - (p.precoCusto || 0)) * (p.quantidadeEstoque || 0)), 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Botão Imprimir */}
+            <div className="flex justify-end mt-4 pt-4 border-t">
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  const printWindow = window.open('', '_blank');
+                  if (printWindow) {
+                    const totalCusto = produtos.reduce((acc, p) => acc + ((p.precoCusto || 0) * (p.quantidadeEstoque || 0)), 0);
+                    const totalVenda = produtos.reduce((acc, p) => acc + ((p.precoVenda || 0) * (p.quantidadeEstoque || 0)), 0);
+                    
+                    printWindow.document.write(`
+                      <!DOCTYPE html>
+                      <html>
+                      <head>
+                        <title>Relatório de Inventário</title>
+                        <style>
+                          body { font-family: Arial, sans-serif; padding: 20px; }
+                          h1 { color: #2563eb; }
+                          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                          th { background-color: #2563eb; color: white; }
+                          tr:nth-child(even) { background-color: #f9f9f9; }
+                          .totals { margin-top: 20px; padding: 10px; background: #f0f0f0; }
+                          .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
+                        </style>
+                      </head>
+                      <body>
+                        <h1>Relatório de Inventário</h1>
+                        <p>Data: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}</p>
+                        <p>Total de Produtos: ${produtos.length}</p>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Produto</th>
+                              <th>Categoria</th>
+                              <th>Qtd.</th>
+                              <th>P. Custo</th>
+                              <th>P. Venda</th>
+                              <th>Total Custo</th>
+                              <th>Total Venda</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${produtos.map((p: any) => `
+                              <tr>
+                                <td>${p.nome}</td>
+                                <td>${p.categoria || '-'}</td>
+                                <td>${p.quantidadeEstoque}</td>
+                                <td>R$ ${(p.precoCusto || 0).toFixed(2)}</td>
+                                <td>R$ ${(p.precoVenda || 0).toFixed(2)}</td>
+                                <td>R$ ${((p.precoCusto || 0) * (p.quantidadeEstoque || 0)).toFixed(2)}</td>
+                                <td>R$ ${((p.precoVenda || 0) * (p.quantidadeEstoque || 0)).toFixed(2)}</td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
+                        <div class="totals">
+                          <strong>Valor Total de Custo: R$ ${totalCusto.toFixed(2)}</strong><br>
+                          <strong>Valor Total de Venda: R$ ${totalVenda.toFixed(2)}</strong><br>
+                          <strong>Lucro Potencial: R$ ${(totalVenda - totalCusto).toFixed(2)}</strong>
+                        </div>
+                        <p class="footer">Gerado por Salon System</p>
+                      </body>
+                      </html>
+                    `);
+                    printWindow.document.close();
+                    printWindow.print();
+                  }
+                }}
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Imprimir Relatório
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
           </>
         )}
       </div>
