@@ -227,6 +227,14 @@ export default function SalonApp() {
   const [comissaoDataInicio, setComissaoDataInicio] = useState<string>('');
   const [comissaoDataFim, setComissaoDataFim] = useState<string>('');
   const [comissaoProfissional, setComissaoProfissional] = useState<string>('todos');
+  const [showComissaoDetalhe, setShowComissaoDetalhe] = useState(false);
+  const [comissaoDetalheProf, setComissaoDetalheProf] = useState<any>(null);
+  
+  // Entrada de Estoque
+  const [showEntradaEstoque, setShowEntradaEstoque] = useState(false);
+  const [entradaEstoqueProduto, setEntradaEstoqueProduto] = useState<any>(null);
+  const [entradaEstoqueQtd, setEntradaEstoqueQtd] = useState(0);
+  const [entradaEstoqueObs, setEntradaEstoqueObs] = useState('');
   
   // Busca de clientes
   const [buscaCliente, setBuscaCliente] = useState<string>('');
@@ -2942,7 +2950,21 @@ export default function SalonApp() {
                         <td className="p-4 text-right">R$ {parseFloat(p.precoCusto || 0).toFixed(2)}</td>
                         <td className="p-4 text-right font-medium">R$ {parseFloat(p.precoVenda || 0).toFixed(2)}</td>
                         <td className="p-4 text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="text-green-500"
+                              title="Entrada no Estoque"
+                              onClick={() => {
+                                setEntradaEstoqueProduto(p);
+                                setEntradaEstoqueQtd(0);
+                                setEntradaEstoqueObs('');
+                                setShowEntradaEstoque(true);
+                              }}
+                            >
+                              <Plus className="w-4 h-4" />
+                            </Button>
                             <Button variant="ghost" size="icon" onClick={() => {
                               setEditingItem(p);
                               produtoForm.reset(p);
@@ -3460,7 +3482,16 @@ export default function SalonApp() {
                       </td>
                       <td className="p-4 text-right font-bold text-orange-600">R$ {c.comissao.toFixed(2)}</td>
                       <td className="p-4 text-right">
-                        <Button variant="ghost" size="sm">Ver Detalhes</Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setComissaoDetalheProf(c);
+                            setShowComissaoDetalhe(true);
+                          }}
+                        >
+                          <Eye className="w-4 h-4 mr-1" /> Detalhes
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -5456,6 +5487,138 @@ export default function SalonApp() {
             >
               <TrendingDown className="w-4 h-4 mr-2" />
               Registrar Sangria
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Detalhes Comissão */}
+      <Dialog open={showComissaoDetalhe} onOpenChange={setShowComissaoDetalhe}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Comissão - {comissaoDetalheProf?.nome}</DialogTitle>
+            <DialogDescription>
+              Serviços realizados no período
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">Serviços</p>
+                <p className="text-2xl font-bold">{comissaoDetalheProf?.qtdServicos}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">Total Gerado</p>
+                <p className="text-2xl font-bold text-green-600">R$ {comissaoDetalheProf?.totalGerado?.toFixed(2)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">Comissão</p>
+                <p className="text-2xl font-bold text-orange-600">R$ {comissaoDetalheProf?.comissao?.toFixed(2)}</p>
+              </div>
+            </div>
+            <ScrollArea className="max-h-[300px]">
+              <div className="space-y-2">
+                {agendamentos
+                  .filter(a => 
+                    a.profissional === comissaoDetalheProf?.nome && 
+                    a.status === 'Concluido' &&
+                    a.data >= (comissaoDataInicio || format(startOfMonth(new Date()), 'yyyy-MM-dd')) &&
+                    a.data <= (comissaoDataFim || format(endOfMonth(new Date()), 'yyyy-MM-dd'))
+                  )
+                  .map((a: any) => (
+                    <div key={a.id} className="flex justify-between items-center p-2 bg-muted/30 rounded">
+                      <div>
+                        <p className="font-medium">{a.servico}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {a.data ? format(new Date(a.data), 'dd/MM/yyyy') : ''} - {a.clienteNome}
+                        </p>
+                      </div>
+                      <p className="font-bold text-green-600">R$ {(a.valor || 0).toFixed(2)}</p>
+                    </div>
+                  ))}
+              </div>
+            </ScrollArea>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowComissaoDetalhe(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Entrada de Estoque */}
+      <Dialog open={showEntradaEstoque} onOpenChange={setShowEntradaEstoque}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-green-600" />
+              Entrada no Estoque
+            </DialogTitle>
+            <DialogDescription>
+              {entradaEstoqueProduto?.nome}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-3 bg-muted/30 rounded-lg">
+              <p className="text-sm text-muted-foreground">Estoque Atual</p>
+              <p className="text-xl font-bold">{entradaEstoqueProduto?.quantidadeEstoque} unidades</p>
+            </div>
+            <div>
+              <Label>Quantidade a Adicionar</Label>
+              <Input 
+                type="number" 
+                min="1"
+                value={entradaEstoqueQtd || ''}
+                onChange={(e) => setEntradaEstoqueQtd(parseInt(e.target.value) || 0)}
+                className="mt-1 text-lg font-bold"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <Label>Observação (opcional)</Label>
+              <Textarea 
+                placeholder="Ex: Compra fornecedor X, ajuste de inventário..."
+                value={entradaEstoqueObs}
+                onChange={(e) => setEntradaEstoqueObs(e.target.value)}
+                className="mt-1"
+                rows={2}
+              />
+            </div>
+            {entradaEstoqueQtd > 0 && (
+              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <p className="text-sm text-muted-foreground">Novo Estoque</p>
+                <p className="text-xl font-bold text-green-600">
+                  {(entradaEstoqueProduto?.quantidadeEstoque || 0) + entradaEstoqueQtd} unidades
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEntradaEstoque(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              className="bg-green-600 hover:bg-green-700"
+              onClick={async () => {
+                if (!tenant || !entradaEstoqueProduto || entradaEstoqueQtd <= 0) return;
+                
+                try {
+                  const novoEstoque = (entradaEstoqueProduto.quantidadeEstoque || 0) + entradaEstoqueQtd;
+                  const produtoRef = doc(db, 'saloes', tenant.id, 'produtos', entradaEstoqueProduto.id);
+                  await updateDoc(produtoRef, {
+                    quantidadeEstoque: novoEstoque,
+                    updatedAt: new Date().toISOString(),
+                  });
+                  
+                  setShowEntradaEstoque(false);
+                  alert('Entrada de estoque registrada com sucesso!');
+                } catch (error) {
+                  console.error('Erro ao registrar entrada:', error);
+                  alert('Erro ao registrar entrada. Tente novamente.');
+                }
+              }}
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Confirmar Entrada
             </Button>
           </DialogFooter>
         </DialogContent>
