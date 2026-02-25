@@ -3626,7 +3626,16 @@ export default function SalonApp() {
       </Dialog>
       
       {/* Agendamento Dialog */}
-      <Dialog open={showAgendamentoDialog} onOpenChange={setShowAgendamentoDialog}>
+      <Dialog open={showAgendamentoDialog} onOpenChange={(open) => {
+        setShowAgendamentoDialog(open);
+        if (open) {
+          console.log('=== DIÁLOGO AGENDAMENTO ABERTO ===');
+          console.log('Clientes disponíveis:', clientes.length, clientes);
+          console.log('Serviços disponíveis:', servicos.length, servicos);
+          console.log('Profissionais disponíveis:', profissionais.length, profissionais);
+          console.log('Tenant:', tenant);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
