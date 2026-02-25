@@ -101,6 +101,7 @@ const servicoSchema = z.object({
 const produtoSchema = z.object({
   nome: z.string().min(2, 'Nome é obrigatório'),
   descricao: z.string().optional(),
+  categoria: z.string().optional(),
   precoVenda: z.number().min(0, 'Preço de venda deve ser maior ou igual a zero'),
   precoCusto: z.number().min(0, 'Preço de custo deve ser maior ou igual a zero').optional(),
   quantidadeEstoque: z.number().min(0, 'Quantidade deve ser maior ou igual a zero'),
@@ -222,6 +223,11 @@ export default function SalonApp() {
   const [relatorioDataFim, setRelatorioDataFim] = useState<string>('');
   const [relatorioLoading, setRelatorioLoading] = useState(false);
   
+  // Filtros de Comissões
+  const [comissaoDataInicio, setComissaoDataInicio] = useState<string>('');
+  const [comissaoDataFim, setComissaoDataFim] = useState<string>('');
+  const [comissaoProfissional, setComissaoProfissional] = useState<string>('todos');
+  
   // Busca de clientes
   const [buscaCliente, setBuscaCliente] = useState<string>('');
   const [pdvBuscaCliente, setPdvBuscaCliente] = useState<string>('');
@@ -246,6 +252,11 @@ export default function SalonApp() {
   const [caixaFiltroDataInicio, setCaixaFiltroDataInicio] = useState('');
   const [caixaFiltroDataFim, setCaixaFiltroDataFim] = useState('');
   const [caixaHistorico, setCaixaHistorico] = useState<any[]>([]);
+  
+  // Sangria
+  const [showSangriaDialog, setShowSangriaDialog] = useState(false);
+  const [sangriaValor, setSangriaValor] = useState(0);
+  const [sangriaJustificativa, setSangriaJustificativa] = useState('');
   
   // Relatório de Estoque
   const [filtroDataInicio, setFiltroDataInicio] = useState('');
@@ -321,6 +332,7 @@ export default function SalonApp() {
     defaultValues: {
       nome: '',
       descricao: '',
+      categoria: '',
       precoVenda: 0,
       precoCusto: 0,
       quantidadeEstoque: 0,
@@ -2997,6 +3009,52 @@ export default function SalonApp() {
         return acc;
       }, {} as Record<string, number>);
 
+    // Separar dinheiro de outras formas
+    const totalDinheiro = formasPagamento['Dinheiro'] || 0;
+    const totalCartao = (formasPagamento['Crédito'] || 0) + (formasPagamento['Débito'] || 0) + (formasPagamento['Cartão'] || 0);
+    const totalPix = formasPagamento['PIX'] || 0;
+    const totalOutros = Object.entries(formasPagamento)
+      .filter(([forma]) => !['Dinheiro', 'Crédito', 'Débito', 'PIX', 'Cartão'].includes(forma))
+      .reduce((acc, [, val]) => acc + val, 0);
+
+    // Calcular sangrias do período
+    const sangrias = movimentacoesFiltradas.filter(f => f.descricao?.includes('SANGRIA'));
+    const totalSangrias = sangrias.reduce((acc, s) => acc + s.valor, 0);
+
+    // Saldo em dinheiro no caixa físico
+    const saldoDinheiroCaixa = caixaValorAbertura + totalDinheiro - totalSangrias;
+
+    // Função para registrar sangria
+    const handleSangria = async () => {
+      if (!tenant || sangriaValor <= 0) return;
+      if (!sangriaJustificativa.trim()) {
+        alert('Informe a justificativa da sangria');
+        return;
+      }
+      
+      try {
+        const sangriaData = {
+          data: hoje,
+          descricao: `SANGRIA - ${sangriaJustificativa.toUpperCase()}`,
+          tipo: 'saida',
+          valor: sangriaValor,
+          formaPagamento: 'Dinheiro',
+          observacoes: `Sangria realizada por ${user?.nome || 'Sistema'}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await addDoc(collection(db, 'saloes', tenant.id, 'financeiro'), sangriaData);
+        
+        setShowSangriaDialog(false);
+        setSangriaValor(0);
+        setSangriaJustificativa('');
+        alert('Sangria registrada com sucesso!');
+      } catch (error) {
+        console.error('Erro ao registrar sangria:', error);
+        alert('Erro ao registrar sangria. Tente novamente.');
+      }
+    };
+
     // Função para abrir caixa no Firebase
     const handleAbrirCaixa = async (valor: number) => {
       if (!tenant) return;
@@ -3141,17 +3199,62 @@ export default function SalonApp() {
           <Card className="bg-primary/10"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Saldo</p><p className="text-lg font-bold text-primary">R$ {(caixaValorAbertura + saldo).toFixed(2)}</p></CardContent></Card>
         </div>
 
-        {/* Formas de Pagamento */}
-        <Card>
-          <CardHeader className="py-2"><CardTitle className="text-sm">Formas de Pagamento</CardTitle></CardHeader>
+        {/* Caixa Físico (Dinheiro) */}
+        <Card className="border-2 border-green-200 dark:border-green-800">
+          <CardHeader className="py-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-green-600" />
+              Caixa Físico (Dinheiro)
+            </CardTitle>
+            {caixaAberto && (
+              <Button variant="outline" size="sm" onClick={() => setShowSangriaDialog(true)}>
+                <TrendingDown className="w-4 h-4 mr-1" /> Sangria
+              </Button>
+            )}
+          </CardHeader>
           <CardContent className="pb-3">
-            <div className="grid grid-cols-4 gap-2">
-              {Object.keys(formasPagamento).length > 0 ? Object.entries(formasPagamento).map(([forma, valor]) => (
-                <div key={forma} className="p-2 bg-muted/50 rounded text-center">
-                  <p className="text-xs text-muted-foreground">{forma}</p>
-                  <p className="font-bold">R$ {valor.toFixed(2)}</p>
-                </div>
-              )) : <div className="col-span-4 text-center text-sm text-muted-foreground py-2">Sem vendas no período</div>}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <p className="text-xs text-muted-foreground">Abertura + Vendas Dinheiro</p>
+                <p className="text-xl font-bold text-green-600">R$ {(caixaValorAbertura + totalDinheiro).toFixed(2)}</p>
+              </div>
+              <div className="text-center p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <p className="text-xs text-muted-foreground">Sangrias</p>
+                <p className="text-xl font-bold text-red-600">R$ {totalSangrias.toFixed(2)}</p>
+              </div>
+              <div className="text-center p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <p className="text-xs text-muted-foreground">Saldo em Caixa</p>
+                <p className="text-xl font-bold text-blue-600">R$ {saldoDinheiroCaixa.toFixed(2)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Vendas por Forma de Pagamento */}
+        <Card>
+          <CardHeader className="py-2"><CardTitle className="text-sm">Vendas por Forma de Pagamento</CardTitle></CardHeader>
+          <CardContent className="pb-3">
+            <div className="grid grid-cols-4 gap-3">
+              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-center">
+                <p className="text-xs text-muted-foreground">💰 Dinheiro</p>
+                <p className="text-lg font-bold text-green-600">R$ {totalDinheiro.toFixed(2)}</p>
+                <p className="text-xs text-green-500">No caixa físico</p>
+              </div>
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-center">
+                <p className="text-xs text-muted-foreground">💳 Cartões</p>
+                <p className="text-lg font-bold text-blue-600">R$ {totalCartao.toFixed(2)}</p>
+                <p className="text-xs text-blue-500">Crédito/Débito</p>
+              </div>
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-center">
+                <p className="text-xs text-muted-foreground">📱 PIX</p>
+                <p className="text-lg font-bold text-purple-600">R$ {totalPix.toFixed(2)}</p>
+                <p className="text-xs text-purple-500">Transferência</p>
+              </div>
+              <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg text-center">
+                <p className="text-xs text-muted-foreground">📦 Outros</p>
+                <p className="text-lg font-bold text-gray-600">R$ {totalOutros.toFixed(2)}</p>
+                <p className="text-xs text-gray-500">Outras formas</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -3218,41 +3321,93 @@ export default function SalonApp() {
   // =====================================
   const renderComissoes = () => {
     const hoje = new Date();
-    const inicioMes = startOfMonth(hoje);
-    const fimMes = endOfMonth(hoje);
     
-    const comissoesData = profissionais.map(prof => {
-      // Filtrar agendamentos pelo nome do profissional (não pelo ID)
-      const servicosProf = agendamentos.filter(a => 
-        a.profissional === prof.nome && 
-        a.status === 'Concluido' &&
-        a.data >= format(inicioMes, 'yyyy-MM-dd') && 
-        a.data <= format(fimMes, 'yyyy-MM-dd')
-      );
-      const totalGerado = servicosProf.reduce((acc, a) => acc + (a.valor || 0), 0);
-      const comissao = prof.tipoComissao === 'percentual' 
-        ? (totalGerado * (prof.percentualComissao || 0)) / 100 
-        : servicosProf.length * (prof.percentualComissao || 0);
-      
-      return {
-        ...prof,
-        totalGerado,
-        comissao,
-        qtdServicos: servicosProf.length
-      };
-    });
+    // Determinar período
+    let dataInicio = comissaoDataInicio || format(startOfMonth(hoje), 'yyyy-MM-dd');
+    let dataFim = comissaoDataFim || format(endOfMonth(hoje), 'yyyy-MM-dd');
+    
+    const comissoesData = profissionais
+      .filter(prof => comissaoProfissional === 'todos' || prof.nome === comissaoProfissional)
+      .map(prof => {
+        // Filtrar agendamentos pelo nome do profissional e período
+        const servicosProf = agendamentos.filter(a => 
+          a.profissional === prof.nome && 
+          a.status === 'Concluido' &&
+          a.data >= dataInicio && 
+          a.data <= dataFim
+        );
+        const totalGerado = servicosProf.reduce((acc, a) => acc + (a.valor || 0), 0);
+        const comissao = prof.tipoComissao === 'percentual' 
+          ? (totalGerado * (prof.percentualComissao || 0)) / 100 
+          : servicosProf.length * (prof.percentualComissao || 0);
+        
+        return {
+          ...prof,
+          totalGerado,
+          comissao,
+          qtdServicos: servicosProf.length
+        };
+      });
 
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">Relatório de Comissões</h2>
-          <div className="flex gap-2">
-            <Button variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Exportar PDF
-            </Button>
-          </div>
         </div>
+
+        {/* Filtros */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label className="text-sm text-muted-foreground">Data Início</Label>
+                <Input 
+                  type="date" 
+                  value={comissaoDataInicio} 
+                  onChange={(e) => setComissaoDataInicio(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground">Data Fim</Label>
+                <Input 
+                  type="date" 
+                  value={comissaoDataFim} 
+                  onChange={(e) => setComissaoDataFim(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground">Profissional</Label>
+                <Select value={comissaoProfissional} onValueChange={setComissaoProfissional}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {profissionais.filter((p: any) => p.status === 'ativo').map((p: any) => (
+                      <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setComissaoDataInicio('');
+                    setComissaoDataFim('');
+                    setComissaoProfissional('todos');
+                  }}
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Limpar
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="bg-blue-600 text-white">
@@ -4591,6 +4746,34 @@ export default function SalonApp() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={produtoForm.control}
+                name="categoria"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Categoria</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a categoria" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="SHAMPOO">Shampoo</SelectItem>
+                        <SelectItem value="CONDICIONADOR">Condicionador</SelectItem>
+                        <SelectItem value="TRATAMENTO">Tratamento</SelectItem>
+                        <SelectItem value="FINALIZADOR">Finalizador</SelectItem>
+                        <SelectItem value="COLORACAO">Coloração</SelectItem>
+                        <SelectItem value="DESCOLORANTE">Descolorante</SelectItem>
+                        <SelectItem value="PERFUME">Perfume</SelectItem>
+                        <SelectItem value="ACESSORIO">Acessório</SelectItem>
+                        <SelectItem value="OUTROS">Outros</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={produtoForm.control}
@@ -5192,6 +5375,87 @@ export default function SalonApp() {
             >
               <Check className="w-4 h-4 mr-2" />
               {caixaAberto ? 'Atualizar' : 'Abrir Caixa'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sangria Dialog */}
+      <Dialog open={showSangriaDialog} onOpenChange={setShowSangriaDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingDown className="w-5 h-5 text-red-500" />
+              Sangria de Caixa
+            </DialogTitle>
+            <DialogDescription>
+              Retirada de dinheiro do caixa físico
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Valor da Sangria</Label>
+              <div className="relative mt-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-muted-foreground">R$</span>
+                <Input 
+                  type="number" 
+                  step="0.01"
+                  placeholder="0,00"
+                  value={sangriaValor || ''}
+                  onChange={(e) => setSangriaValor(parseFloat(e.target.value) || 0)}
+                  className="text-xl font-bold h-12 pl-10"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Justificativa *</Label>
+              <Textarea 
+                placeholder="Ex: Pagamento de fornecedor, troco para o dia seguinte..."
+                value={sangriaJustificativa}
+                onChange={(e) => setSangriaJustificativa(e.target.value)}
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowSangriaDialog(false); setSangriaValor(0); setSangriaJustificativa(''); }}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={async () => {
+                if (!tenant || sangriaValor <= 0) return;
+                if (!sangriaJustificativa.trim()) {
+                  alert('Informe a justificativa da sangria');
+                  return;
+                }
+                
+                try {
+                  const sangriaData = {
+                    data: format(new Date(), 'yyyy-MM-dd'),
+                    descricao: `SANGRIA - ${sangriaJustificativa.toUpperCase()}`,
+                    tipo: 'saida',
+                    valor: sangriaValor,
+                    formaPagamento: 'Dinheiro',
+                    observacoes: `Sangria realizada por ${user?.nome || 'Sistema'}`,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  };
+                  await addDoc(collection(db, 'saloes', tenant.id, 'financeiro'), sangriaData);
+                  
+                  setShowSangriaDialog(false);
+                  setSangriaValor(0);
+                  setSangriaJustificativa('');
+                  alert('Sangria registrada com sucesso!');
+                } catch (error) {
+                  console.error('Erro ao registrar sangria:', error);
+                  alert('Erro ao registrar sangria. Tente novamente.');
+                }
+              }}
+            >
+              <TrendingDown className="w-4 h-4 mr-2" />
+              Registrar Sangria
             </Button>
           </DialogFooter>
         </DialogContent>
