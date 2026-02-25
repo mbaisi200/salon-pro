@@ -3639,7 +3639,14 @@ export default function SalonApp() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
+            <DialogDescription>Preencha os dados para criar um novo agendamento.</DialogDescription>
           </DialogHeader>
+          
+          {/* DEBUG INFO */}
+          <div className="bg-yellow-100 p-2 rounded text-xs mb-2">
+            <strong>DEBUG:</strong> Clientes: {clientes.length} | Serviços: {servicos.length} | Profissionais: {profissionais.length}
+          </div>
+          
           <Form {...agendamentoForm}>
             <form onSubmit={(e) => {
               console.log('=== FORM SUBMIT DISPARADO ===');
@@ -3797,7 +3804,14 @@ export default function SalonApp() {
                     Excluir
                   </Button>
                 )}
-                <Button type="submit" onClick={() => console.log('=== BOTÃO SALVAR AGENDAMENTO CLICADO ===')}>Salvar</Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => {
+                    console.log('=== TESTE BOTÃO ===');
+                    console.log('Form values:', agendamentoForm.getValues());
+                    alert('Dados: ' + JSON.stringify(agendamentoForm.getValues()));
+                  }}>🧪 Testar</Button>
+                  <Button type="submit">💾 Salvar</Button>
+                </div>
               </DialogFooter>
             </form>
           </Form>
