@@ -4182,45 +4182,74 @@ export default function SalonApp() {
                   )}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={agendamentoForm.control}
-                  name="duracao"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Duração (minutos)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 30)}
-                          min={5}
-                          step={5}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormItem>
-                  <FormLabel>Horário Término</FormLabel>
-                  <div className="flex h-10 items-center px-3 rounded-md border bg-muted/50">
-                    <Clock className="w-4 h-4 mr-2 text-muted-foreground" />
-                    <span className="font-medium">
-                      {agendamentoForm.watch('hora') && agendamentoForm.watch('duracao')
-                        ? (() => {
-                            const hora = agendamentoForm.watch('hora');
-                            const duracao = agendamentoForm.watch('duracao') || 30;
-                            const [h, m] = hora.split(':').map(Number);
-                            const totalMinutos = h * 60 + m + duracao;
-                            const novaH = Math.floor(totalMinutos / 60) % 24;
-                            const novaM = totalMinutos % 60;
-                            return `${String(novaH).padStart(2, '0')}:${String(novaM).padStart(2, '0')}`;
-                          })()
-                        : '--:--'}
-                    </span>
+              {/* Duração do Serviço */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  <span className="font-semibold text-blue-700 dark:text-blue-400">Tempo de Serviço</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={agendamentoForm.control}
+                    name="duracao"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Duração (minutos)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            {...field}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 30)}
+                            min={5}
+                            step={5}
+                            className="font-bold text-lg"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormItem>
+                    <FormLabel>Horário Término</FormLabel>
+                    <div className="flex h-10 items-center px-3 rounded-md border bg-white dark:bg-gray-800 font-bold text-lg text-green-600">
+                      <Clock className="w-4 h-4 mr-2 text-green-600" />
+                      <span>
+                        {agendamentoForm.watch('hora') && agendamentoForm.watch('duracao')
+                          ? (() => {
+                              const hora = agendamentoForm.watch('hora');
+                              const duracao = agendamentoForm.watch('duracao') || 30;
+                              const [h, m] = hora.split(':').map(Number);
+                              const totalMinutos = h * 60 + m + duracao;
+                              const novaH = Math.floor(totalMinutos / 60) % 24;
+                              const novaM = totalMinutos % 60;
+                              return `${String(novaH).padStart(2, '0')}:${String(novaM).padStart(2, '0')}`;
+                            })()
+                          : '--:--'}
+                      </span>
+                    </div>
+                  </FormItem>
+                </div>
+                {/* Botões de duração rápida */}
+                <div className="mt-3">
+                  <span className="text-xs text-muted-foreground mb-2 block">Seleção rápida:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {[15, 30, 45, 60, 90, 120].map((min) => (
+                      <Button
+                        key={min}
+                        type="button"
+                        variant={agendamentoForm.watch('duracao') === min ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => agendamentoForm.setValue('duracao', min)}
+                        className={cn(
+                          "min-w-[60px]",
+                          agendamentoForm.watch('duracao') === min && "bg-blue-600 hover:bg-blue-700"
+                        )}
+                      >
+                        {min} min
+                      </Button>
+                    ))}
                   </div>
-                </FormItem>
+                </div>
               </div>
               <FormField
                 control={agendamentoForm.control}
