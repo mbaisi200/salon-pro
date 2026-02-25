@@ -3433,7 +3433,7 @@ export default function SalonApp() {
           </Card>
         )}
 
-        {/* Cards de Resumo */}
+        {/* Cards de Resumo Geral */}
         <div className="grid grid-cols-4 gap-3">
           <Card className="bg-blue-50 dark:bg-blue-900/20"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Abertura</p><p className="text-lg font-bold text-blue-600">R$ {caixaValorAbertura.toFixed(2)}</p></CardContent></Card>
           <Card className="bg-green-50 dark:bg-green-900/20"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Entradas</p><p className="text-lg font-bold text-green-600">R$ {entradas.toFixed(2)}</p></CardContent></Card>
@@ -3441,91 +3441,152 @@ export default function SalonApp() {
           <Card className="bg-primary/10"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Saldo</p><p className="text-lg font-bold text-primary">R$ {(caixaValorAbertura + saldo).toFixed(2)}</p></CardContent></Card>
         </div>
 
-        {/* Caixa Físico (Dinheiro) */}
-        <Card className="border-2 border-green-200 dark:border-green-800">
-          <CardHeader className="py-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-green-600" />
-              Caixa Físico (Dinheiro)
-            </CardTitle>
-            {caixaAberto && (
-              <Button variant="outline" size="sm" onClick={() => setShowSangriaDialog(true)}>
-                <TrendingDown className="w-4 h-4 mr-1" /> Sangria
-              </Button>
-            )}
+        {/* CAIXA FÍSICO - DESTAQUE PRINCIPAL */}
+        <Card className="border-2 border-green-500 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 shadow-lg">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2 text-green-700 dark:text-green-400">
+                <div className="p-2 bg-green-500 rounded-lg">
+                  <Wallet className="w-5 h-5 text-white" />
+                </div>
+                CAIXA FÍSICO (DINHEIRO)
+              </CardTitle>
+              {caixaAberto && (
+                <Button variant="outline" size="sm" className="border-green-500 text-green-600" onClick={() => setShowSangriaDialog(true)}>
+                  <TrendingDown className="w-4 h-4 mr-1" /> Sangria
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">Dinheiro em espécie que está fisicamente no caixa</p>
           </CardHeader>
-          <CardContent className="pb-3">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <p className="text-xs text-muted-foreground">Abertura + Vendas Dinheiro</p>
-                <p className="text-xl font-bold text-green-600">R$ {(caixaValorAbertura + totalDinheiro).toFixed(2)}</p>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow text-center">
+                <p className="text-xs text-muted-foreground mb-1">Valor Abertura</p>
+                <p className="text-2xl font-bold text-blue-600">R$ {caixaValorAbertura.toFixed(2)}</p>
               </div>
-              <div className="text-center p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <p className="text-xs text-muted-foreground">Sangrias</p>
-                <p className="text-xl font-bold text-red-600">R$ {totalSangrias.toFixed(2)}</p>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow text-center">
+                <p className="text-xs text-muted-foreground mb-1">+ Vendas em Dinheiro</p>
+                <p className="text-2xl font-bold text-green-600">R$ {totalDinheiro.toFixed(2)}</p>
               </div>
-              <div className="text-center p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <p className="text-xs text-muted-foreground">Saldo em Caixa</p>
-                <p className="text-xl font-bold text-blue-600">R$ {saldoDinheiroCaixa.toFixed(2)}</p>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow text-center">
+                <p className="text-xs text-muted-foreground mb-1">- Sangrias</p>
+                <p className="text-2xl font-bold text-red-600">R$ {totalSangrias.toFixed(2)}</p>
               </div>
+            </div>
+            <div className="bg-green-600 text-white p-4 rounded-xl text-center">
+              <p className="text-sm opacity-90">💰 SALDO ATUAL EM DINHEIRO NO CAIXA</p>
+              <p className="text-3xl font-black">R$ {saldoDinheiroCaixa.toFixed(2)}</p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Vendas por Forma de Pagamento */}
+        {/* OUTRAS FORMAS DE PAGAMENTO */}
+        <Card className="border-2 border-blue-200 dark:border-blue-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-blue-700 dark:text-blue-400">
+              <CreditCard className="w-4 h-4" />
+              OUTRAS FORMAS DE PAGAMENTO
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">Vendas que não entram no caixa físico (já estão no banco)</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-xl text-center border border-blue-200 dark:border-blue-800">
+                <div className="text-2xl mb-1">💳</div>
+                <p className="text-xs text-muted-foreground">Cartões</p>
+                <p className="text-xl font-bold text-blue-600">R$ {totalCartao.toFixed(2)}</p>
+                <p className="text-xs text-blue-500">(Crédito + Débito)</p>
+              </div>
+              <div className="p-4 bg-purple-50 dark:bg-purple-900/30 rounded-xl text-center border border-purple-200 dark:border-purple-800">
+                <div className="text-2xl mb-1">📱</div>
+                <p className="text-xs text-muted-foreground">PIX</p>
+                <p className="text-xl font-bold text-purple-600">R$ {totalPix.toFixed(2)}</p>
+                <p className="text-xs text-purple-500">(Transferência)</p>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl text-center border border-gray-200 dark:border-gray-700">
+                <div className="text-2xl mb-1">📦</div>
+                <p className="text-xs text-muted-foreground">Outros</p>
+                <p className="text-xl font-bold text-gray-600">R$ {totalOutros.toFixed(2)}</p>
+                <p className="text-xs text-gray-500">(Outras formas)</p>
+              </div>
+            </div>
+            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex justify-between items-center">
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Total em Meios Eletrônicos:</span>
+              <span className="text-xl font-bold text-blue-600">R$ {(totalCartao + totalPix + totalOutros).toFixed(2)}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* RESUMO DAS VENDAS DO PERÍODO */}
         <Card>
-          <CardHeader className="py-2"><CardTitle className="text-sm">Vendas por Forma de Pagamento</CardTitle></CardHeader>
-          <CardContent className="pb-3">
-            <div className="grid grid-cols-4 gap-3">
-              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-center">
-                <p className="text-xs text-muted-foreground">💰 Dinheiro</p>
-                <p className="text-lg font-bold text-green-600">R$ {totalDinheiro.toFixed(2)}</p>
-                <p className="text-xs text-green-500">No caixa físico</p>
+          <CardHeader className="py-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-green-600" />
+              RESUMO DAS VENDAS DO PERÍODO
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg text-center border border-green-200 dark:border-green-800">
+                <p className="text-xs text-muted-foreground">💰 Em Dinheiro</p>
+                <p className="text-xl font-bold text-green-600">R$ {totalDinheiro.toFixed(2)}</p>
+                <p className="text-xs text-green-500">Vai para o caixa físico</p>
               </div>
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-center">
-                <p className="text-xs text-muted-foreground">💳 Cartões</p>
-                <p className="text-lg font-bold text-blue-600">R$ {totalCartao.toFixed(2)}</p>
-                <p className="text-xs text-blue-500">Crédito/Débito</p>
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center border border-blue-200 dark:border-blue-800">
+                <p className="text-xs text-muted-foreground">📱 Eletrônicos</p>
+                <p className="text-xl font-bold text-blue-600">R$ {(totalCartao + totalPix + totalOutros).toFixed(2)}</p>
+                <p className="text-xs text-blue-500">Cartões, PIX, etc</p>
               </div>
-              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-center">
-                <p className="text-xs text-muted-foreground">📱 PIX</p>
-                <p className="text-lg font-bold text-purple-600">R$ {totalPix.toFixed(2)}</p>
-                <p className="text-xs text-purple-500">Transferência</p>
-              </div>
-              <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg text-center">
-                <p className="text-xs text-muted-foreground">📦 Outros</p>
-                <p className="text-lg font-bold text-gray-600">R$ {totalOutros.toFixed(2)}</p>
-                <p className="text-xs text-gray-500">Outras formas</p>
-              </div>
+            </div>
+            <div className="mt-3 p-3 bg-primary/10 rounded-lg flex justify-between items-center">
+              <span className="font-semibold">TOTAL DE VENDAS:</span>
+              <span className="text-2xl font-bold text-primary">R$ {(totalDinheiro + totalCartao + totalPix + totalOutros).toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
 
         {/* Movimentações */}
         <Card>
-          <CardHeader className="py-2"><CardTitle className="text-sm">Movimentações ({movimentacoesFiltradas.length})</CardTitle></CardHeader>
+          <CardHeader className="py-2"><CardTitle className="text-sm">Movimentações Detalhadas ({movimentacoesFiltradas.length})</CardTitle></CardHeader>
           <CardContent className="pb-3">
             <ScrollArea className="max-h-[250px]">
               <div className="space-y-1">
                 {movimentacoesFiltradas.length === 0 ? (
                   <div className="text-center text-muted-foreground py-4">Sem movimentações no período</div>
                 ) : (
-                  movimentacoesFiltradas.map((mov, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-2 bg-muted/30 rounded text-sm">
+                  movimentacoesFiltradas.map((mov, idx) => {
+                    const isDinheiro = mov.formaPagamento === 'Dinheiro';
+                    const isSangria = mov.descricao?.includes('SANGRIA');
+                    return (
+                    <div key={idx} className={cn(
+                      "flex justify-between items-center p-2 rounded text-sm",
+                      isDinheiro && mov.tipo === 'entrada' ? "bg-green-100 dark:bg-green-900/30 border-l-4 border-green-500" :
+                      isSangria ? "bg-red-100 dark:bg-red-900/30 border-l-4 border-red-500" :
+                      "bg-muted/30"
+                    )}>
                       <div className="flex items-center gap-2">
                         <div className={cn("w-6 h-6 rounded flex items-center justify-center", mov.tipo === 'entrada' ? "bg-green-100" : "bg-red-100")}>
                           {mov.tipo === 'entrada' ? <TrendingUp className="w-3 h-3 text-green-600" /> : <TrendingDown className="w-3 h-3 text-red-600" />}
                         </div>
                         <div>
                           <p className="font-medium truncate max-w-[200px]">{mov.descricao}</p>
-                          <p className="text-xs text-muted-foreground">{mov.formaPagamento || '-'}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-muted-foreground">{mov.formaPagamento || '-'}</p>
+                            {isDinheiro && mov.tipo === 'entrada' && (
+                              <Badge variant="outline" className="text-xs text-green-600 border-green-500">No caixa físico</Badge>
+                            )}
+                            {isSangria && (
+                              <Badge variant="outline" className="text-xs text-red-600 border-red-500">Retirada</Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <p className={cn("font-bold", mov.tipo === 'entrada' ? "text-green-600" : "text-red-600")}>
                         {mov.tipo === 'entrada' ? '+' : '-'} R$ {mov.valor.toFixed(2)}
                       </p>
                     </div>
-                  ))
+                  )})
                 )}
               </div>
             </ScrollArea>
