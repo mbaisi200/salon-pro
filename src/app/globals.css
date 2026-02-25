@@ -155,3 +155,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Forçar cor azul no hover do sidemenu */
+aside nav button:hover {
+  background-color: #DBEAFE !important;
+  color: #1E40AF !important;
+}
+
+aside nav button:hover svg {
+  color: #1E40AF !important;
+}
+
+.dark aside nav button:hover {
+  background-color: #1E3A5F !important;
+  color: #93C5FD !important;
+}
+
+.dark aside nav button:hover svg {
+  color: #93C5FD !important;
+}

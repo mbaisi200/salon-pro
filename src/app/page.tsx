@@ -228,6 +228,12 @@ export default function SalonApp() {
   const [showPdvPagamento, setShowPdvPagamento] = useState(false);
   const [pdvFormaPagamento, setPdvFormaPagamento] = useState<string>("Dinheiro");
   
+  // Pagamento fracionado
+  const [pagamentoFracionado, setPagamentoFracionado] = useState<boolean>(false);
+  const [pagamentos, setPagamentos] = useState<{forma: string; valor: number}[]>([
+    { forma: 'Dinheiro', valor: 0 }
+  ]);
+  
   // Caixa - com persistência no localStorage
   const [caixaAberto, setCaixaAberto] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -868,7 +874,7 @@ export default function SalonApp() {
     }
   }, [db, tenant, editingItem, produtoForm]);
 
-    const handleFinalizarVenda = useCallback(async (formaPagamento: string) => {
+    const handleFinalizarVenda = useCallback(async (formaPagamento: string, pagamentosFracionados?: {forma: string; valor: number}[]) => {
     const pdvTotal = pdvCarrinho.reduce((acc, item) => {
       const preco = item.type === "servico" ? parseFloat(item.preco) : parseFloat(item.precoVenda);
       return acc + (preco * item.qtd);
@@ -882,18 +888,37 @@ export default function SalonApp() {
       const descricoes = pdvCarrinho.map(i => `${i.qtd}x ${i.nome}`).join(', ');
       const clienteNome = pdvClienteSelecionado ? pdvClienteSelecionado.nome : 'CONSUMIDOR';
       
-      // 1. Registrar no Financeiro
-      const financeiroData = {
-        data: dataVenda,
-        descricao: `VENDA PDV - ${clienteNome.toUpperCase()} (${descricoes.toUpperCase()})`,
-        tipo: 'entrada',
-        valor: pdvTotal,
-        formaPagamento: formaPagamento,
-        observacoes: 'Venda realizada via PDV',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      await addDoc(collection(db, 'saloes', tenant.id, 'financeiro'), financeiroData);
+      // Se for pagamento fracionado, registrar cada forma separadamente
+      if (pagamentosFracionados && pagamentosFracionados.length > 0) {
+        for (const pag of pagamentosFracionados) {
+          if (pag.valor > 0) {
+            const financeiroData = {
+              data: dataVenda,
+              descricao: `VENDA PDV - ${clienteNome.toUpperCase()} (${descricoes.toUpperCase()}) - ${pag.forma}`,
+              tipo: 'entrada',
+              valor: pag.valor,
+              formaPagamento: pag.forma,
+              observacoes: 'Venda fracionada realizada via PDV',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            await addDoc(collection(db, 'saloes', tenant.id, 'financeiro'), financeiroData);
+          }
+        }
+      } else {
+        // Pagamento único
+        const financeiroData = {
+          data: dataVenda,
+          descricao: `VENDA PDV - ${clienteNome.toUpperCase()} (${descricoes.toUpperCase()})`,
+          tipo: 'entrada',
+          valor: pdvTotal,
+          formaPagamento: formaPagamento,
+          observacoes: 'Venda realizada via PDV',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await addDoc(collection(db, 'saloes', tenant.id, 'financeiro'), financeiroData);
+      }
       
       // 2. Atualizar Estoque (apenas para produtos)
       for (const item of pdvCarrinho) {
@@ -911,6 +936,8 @@ export default function SalonApp() {
       setPdvCarrinho([]);
       setPdvClienteSelecionado(null);
       setShowPdvPagamento(false);
+      setPagamentoFracionado(false);
+      setPagamentos([{ forma: 'Dinheiro', valor: 0 }]);
       alert('Venda finalizada com sucesso!');
       
     } catch (error) {
@@ -4743,8 +4770,14 @@ SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
       </Dialog>
       
       {/* PDV Pagamento Dialog */}
-      <Dialog open={showPdvPagamento} onOpenChange={setShowPdvPagamento}>
-        <DialogContent className="sm:max-w-[400px]">
+      <Dialog open={showPdvPagamento} onOpenChange={(open) => {
+        setShowPdvPagamento(open);
+        if (!open) {
+          setPagamentoFracionado(false);
+          setPagamentos([{ forma: 'Dinheiro', valor: 0 }]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-600" />
@@ -4755,55 +4788,201 @@ SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4 space-y-6">
-            <div className="text-center p-4 bg-muted/50 rounded-xl border-2 border-dashed border-muted">
-              <p className="text-sm text-muted-foreground mb-1">Total a Pagar</p>
-              <p className="text-4xl font-black text-blue-600">
-                R$ {pdvCarrinho.reduce((acc, item) => {
-                  const preco = item.type === "servico" ? parseFloat(item.preco) : parseFloat(item.precoVenda);
-                  return acc + (preco * item.qtd);
-                }, 0).toFixed(2)}
-              </p>
-            </div>
+          {(() => {
+            const totalVenda = pdvCarrinho.reduce((acc, item) => {
+              const preco = item.type === "servico" ? parseFloat(item.preco) : parseFloat(item.precoVenda);
+              return acc + (preco * item.qtd);
+            }, 0);
+            
+            const totalPago = pagamentos.reduce((acc, p) => acc + p.valor, 0);
+            const restante = totalVenda - totalPago;
+            
+            const formasPagamento = [
+              { id: 'Dinheiro', icon: DollarSign, color: 'text-green-600' },
+              { id: 'PIX', icon: ArrowUpRight, color: 'text-teal-600' },
+              { id: 'Cartão de Crédito', icon: CreditCard, color: 'text-blue-600' },
+              { id: 'Cartão de Débito', icon: CreditCard, color: 'text-purple-600' }
+            ];
+            
+            const adicionarFormaPagamento = () => {
+              setPagamentos([...pagamentos, { forma: 'Dinheiro', valor: 0 }]);
+            };
+            
+            const removerFormaPagamento = (index: number) => {
+              setPagamentos(pagamentos.filter((_, i) => i !== index));
+            };
+            
+            const atualizarPagamento = (index: number, campo: 'forma' | 'valor', valor: any) => {
+              const novos = [...pagamentos];
+              if (campo === 'forma') {
+                novos[index].forma = valor;
+              } else {
+                novos[index].valor = parseFloat(valor) || 0;
+              }
+              setPagamentos(novos);
+            };
+            
+            return (
+              <div className="py-4 space-y-4">
+                {/* Total da Venda */}
+                <div className="text-center p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm text-muted-foreground mb-1">Total a Pagar</p>
+                  <p className="text-4xl font-black text-blue-600">
+                    R$ {totalVenda.toFixed(2)}
+                  </p>
+                </div>
 
-            <div className="space-y-3">
-              <Label>Forma de Pagamento</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: 'Dinheiro', icon: DollarSign, color: 'text-green-600' },
-                  { id: 'PIX', icon: ArrowUpRight, color: 'text-teal-600' },
-                  { id: 'Cartão de Crédito', icon: CreditCard, color: 'text-blue-600' },
-                  { id: 'Cartão de Débito', icon: CreditCard, color: 'text-purple-600' }
-                ].map((forma) => (
-                  <Button
-                    key={forma.id}
-                    variant={pdvFormaPagamento === forma.id ? "default" : "outline"}
-                    className={cn(
-                      "h-16 flex flex-col gap-1 items-center justify-center transition-all",
-                      pdvFormaPagamento === forma.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
-                    )}
-                    onClick={() => setPdvFormaPagamento(forma.id)}
-                  >
-                    <forma.icon className={cn("w-5 h-5", pdvFormaPagamento === forma.id ? "text-white" : forma.color)} />
-                    <span className="text-[10px] font-bold uppercase">{forma.id}</span>
+                {/* Toggle Pagamento Fracionado */}
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Pagamento em mais de uma forma?</span>
+                  </div>
+                  <Switch 
+                    checked={pagamentoFracionado} 
+                    onCheckedChange={(checked) => {
+                      setPagamentoFracionado(checked);
+                      if (!checked) {
+                        setPagamentos([{ forma: 'Dinheiro', valor: 0 }]);
+                      } else {
+                        setPagamentos([{ forma: 'Dinheiro', valor: totalVenda }]);
+                      }
+                    }}
+                  />
+                </div>
+
+                {!pagamentoFracionado ? (
+                  /* Pagamento Único */
+                  <div className="space-y-3">
+                    <Label>Forma de Pagamento</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {formasPagamento.map((forma) => (
+                        <Button
+                          key={forma.id}
+                          variant={pdvFormaPagamento === forma.id ? "default" : "outline"}
+                          className={cn(
+                            "h-16 flex flex-col gap-1 items-center justify-center transition-all",
+                            pdvFormaPagamento === forma.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
+                          )}
+                          onClick={() => setPdvFormaPagamento(forma.id)}
+                        >
+                          <forma.icon className={cn("w-5 h-5", pdvFormaPagamento === forma.id ? "text-white" : forma.color)} />
+                          <span className="text-[10px] font-bold uppercase">{forma.id}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* Pagamento Fracionado */
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-base">Formas de Pagamento</Label>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={adicionarFormaPagamento}
+                        disabled={pagamentos.length >= 4}
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Adicionar
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {pagamentos.map((pag, index) => (
+                        <div key={index} className="flex gap-2 items-start p-3 bg-muted/30 rounded-lg border">
+                          <div className="flex-1 space-y-2">
+                            <Select 
+                              value={pag.forma} 
+                              onValueChange={(v) => atualizarPagamento(index, 'forma', v)}
+                            >
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {formasPagamento.map(f => (
+                                  <SelectItem key={f.id} value={f.id}>{f.id}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0,00"
+                                value={pag.valor || ''}
+                                onChange={(e) => atualizarPagamento(index, 'valor', e.target.value)}
+                                className="pl-10 h-10"
+                              />
+                            </div>
+                          </div>
+                          {pagamentos.length > 1 && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-100"
+                              onClick={() => removerFormaPagamento(index)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Resumo do Pagamento Fracionado */}
+                    <div className="p-3 rounded-lg border-2 border-dashed space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Total da venda:</span>
+                        <span className="font-bold">R$ {totalVenda.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Total pago:</span>
+                        <span className={cn("font-bold", totalPago >= totalVenda ? "text-green-600" : "text-orange-600")}>
+                          R$ {totalPago.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm pt-2 border-t">
+                        <span>{restante > 0 ? 'Falta:' : 'Troco:'}</span>
+                        <span className={cn("font-bold text-lg", restante > 0 ? "text-red-600" : "text-green-600")}>
+                          R$ {Math.abs(restante).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Botões de Ação */}
+                <DialogFooter className="gap-2 pt-4">
+                  <Button variant="outline" onClick={() => {
+                    setShowPdvPagamento(false);
+                    setPagamentoFracionado(false);
+                    setPagamentos([{ forma: 'Dinheiro', valor: 0 }]);
+                  }} disabled={loading}>
+                    Cancelar
                   </Button>
-                ))}
+                  <Button 
+                    className="bg-green-600 hover:bg-green-700 text-white" 
+                    onClick={() => {
+                      if (pagamentoFracionado) {
+                        if (totalPago < totalVenda) {
+                          alert(`O total pago (R$ ${totalPago.toFixed(2)}) é menor que o valor da venda (R$ ${totalVenda.toFixed(2)})!`);
+                          return;
+                        }
+                        handleFinalizarVenda('', pagamentos);
+                      } else {
+                        handleFinalizarVenda(pdvFormaPagamento);
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    {loading ? "Processando..." : "Confirmar Pagamento"}
+                  </Button>
+                </DialogFooter>
               </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPdvPagamento(false)} disabled={loading}>
-              Cancelar
-            </Button>
-            <Button 
-              className="bg-green-600 hover:bg-green-700 text-white" 
-              onClick={() => handleFinalizarVenda(pdvFormaPagamento)}
-              disabled={loading}
-            >
-              {loading ? "Processando..." : "Confirmar e Finalizar"}
-            </Button>
-          </DialogFooter>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
