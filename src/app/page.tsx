@@ -686,7 +686,13 @@ export default function SalonApp() {
   }, [db, tenant, setAgendamentos]);
   
   const handleSaveAgendamento = useCallback(async (data: z.infer<typeof agendamentoSchema>) => {
-    if (!tenant) return;
+    console.log('handleSaveAgendamento chamado com dados:', data);
+    
+    if (!tenant) {
+      console.error('Tenant não definido!');
+      alert('Erro: Salão não identificado. Faça login novamente.');
+      return;
+    }
     
     // Validar se a data é anterior à data atual (apenas para novos agendamentos)
     const selectedDate = parseISO(data.data);
@@ -712,10 +718,15 @@ export default function SalonApp() {
         updatedAt: new Date().toISOString(),
       };
       
+      console.log('Salvando agendamento no Firebase:', agendamentoData);
+      console.log('Tenant ID:', tenant.id);
+      
       if (editingItem) {
         await setDoc(doc(db, 'saloes', tenant.id, 'agendamentos', editingItem.id), agendamentoData, { merge: true });
+        console.log('Agendamento atualizado com sucesso!');
       } else {
-        await addDoc(collection(db, 'saloes', tenant.id, 'agendamentos'), agendamentoData);
+        const docRef = await addDoc(collection(db, 'saloes', tenant.id, 'agendamentos'), agendamentoData);
+        console.log('Agendamento criado com sucesso! ID:', docRef.id);
       }
       
       // Se status for Concluido, abrir modal financeiro automaticamente
@@ -738,8 +749,9 @@ export default function SalonApp() {
         agendamentoForm.reset();
         setEditingItem(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar agendamento:', error);
+      alert('Erro ao salvar agendamento: ' + (error.message || 'Erro desconhecido'));
     }
   }, [db, tenant, editingItem, agendamentoForm, servicos, financeiroForm]);
   
@@ -3117,7 +3129,7 @@ export default function SalonApp() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Plano</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || undefined}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione" />
@@ -3485,7 +3497,7 @@ export default function SalonApp() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || undefined}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione" />
@@ -3506,7 +3518,7 @@ export default function SalonApp() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipo Comissão</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || undefined}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione" />
@@ -3605,7 +3617,10 @@ export default function SalonApp() {
             <DialogTitle>{editingItem ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
           </DialogHeader>
           <Form {...agendamentoForm}>
-            <form onSubmit={agendamentoForm.handleSubmit(handleSaveAgendamento)} className="space-y-4">
+            <form onSubmit={agendamentoForm.handleSubmit(handleSaveAgendamento, (errors) => {
+              console.log('Erros de validação do formulário:', errors);
+              alert('Preencha todos os campos obrigatórios: Data, Hora, Cliente, Serviço e Profissional');
+            })} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={agendamentoForm.control}
@@ -3646,7 +3661,7 @@ export default function SalonApp() {
                       if (cliente) {
                         agendamentoForm.setValue('clienteTelefone', cliente.telefone || '');
                       }
-                    }} value={field.value}>
+                    }} value={field.value || undefined}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o cliente" />
@@ -3681,7 +3696,7 @@ export default function SalonApp() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Serviço</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o serviço" />
@@ -3703,7 +3718,7 @@ export default function SalonApp() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Profissional</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o profissional" />
@@ -3725,7 +3740,7 @@ export default function SalonApp() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
@@ -3815,7 +3830,7 @@ export default function SalonApp() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipo</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || undefined}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione" />
@@ -3837,7 +3852,7 @@ export default function SalonApp() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Forma de Pagamento</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value || undefined}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione" />
