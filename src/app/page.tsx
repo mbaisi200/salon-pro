@@ -5187,9 +5187,37 @@ export default function SalonApp() {
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {deleteConfirm?.type === 'salao' && (
+                <>
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                  Excluir Salão Permanentemente
+                </>
+              )}
+              {deleteConfirm?.type !== 'salao' && 'Confirmar exclusão'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.
+              {deleteConfirm?.type === 'salao' ? (
+                <div className="space-y-3">
+                  <p className="font-semibold text-red-600">
+                    ⚠️ ATENÇÃO: Esta ação excluirá PERMANENTEMENTE todos os dados do salão:
+                  </p>
+                  <ul className="list-disc list-inside text-sm space-y-1 text-gray-600 dark:text-gray-400">
+                    <li>Todos os clientes</li>
+                    <li>Todos os profissionais</li>
+                    <li>Todos os serviços</li>
+                    <li>Todos os agendamentos</li>
+                    <li>Todas as movimentações financeiras</li>
+                    <li>Todos os produtos e estoque</li>
+                    <li>Histórico de caixa</li>
+                  </ul>
+                  <p className="font-bold text-red-600 pt-2">
+                    Esta ação NÃO PODE ser desfeita!
+                  </p>
+                </div>
+              ) : (
+                'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.'
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -5202,7 +5230,7 @@ export default function SalonApp() {
               else if (deleteConfirm?.type === 'agendamento') handleDeleteAgendamento();
               else if (deleteConfirm?.type === 'financeiro') handleDeleteFinanceiro();
             }} className="bg-red-500 hover:bg-red-600">
-              Excluir
+              {deleteConfirm?.type === 'salao' ? 'Sim, excluir tudo' : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
