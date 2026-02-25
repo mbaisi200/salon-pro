@@ -228,6 +228,12 @@ export default function SalonApp() {
   const [showPdvPagamento, setShowPdvPagamento] = useState(false);
   const [pdvFormaPagamento, setPdvFormaPagamento] = useState<string>("Dinheiro");
   
+  // Caixa
+  const [caixaAberto, setCaixaAberto] = useState(false);
+  const [caixaValorAbertura, setCaixaValorAbertura] = useState(0);
+  const [showCaixaDialog, setShowCaixaDialog] = useState(false);
+  const [caixaMovimentacoes, setCaixaMovimentacoes] = useState<any[]>([]);
+  
   // Histórico do cliente
   const [showClienteHistorico, setShowClienteHistorico] = useState(false);
   const [clienteSelecionado, setClienteSelecionado] = useState<any>(null);
@@ -1667,6 +1673,7 @@ export default function SalonApp() {
       { id: 'servicos', label: 'Serviços', icon: Scissors },
       { id: 'produtos', label: 'Estoque', icon: Package },
       { id: 'pdv', label: 'Vendas (PDV)', icon: ShoppingCart },
+      { id: 'caixa', label: 'Caixa', icon: Wallet },
       { id: 'comissoes', label: 'Comissões', icon: Percent },
       { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     ];
@@ -2622,6 +2629,185 @@ export default function SalonApp() {
   };
 
   // =====================================
+  // RENDER CAIXA
+  // =====================================
+  const renderCaixa = () => {
+    const hoje = format(new Date(), 'yyyy-MM-dd');
+    
+    // Filtrar movimentações do dia
+    const movimentacoesDia = financeiro.filter(f => f.data === hoje);
+    const entradasDia = movimentacoesDia.filter(f => f.tipo === 'entrada').reduce((acc, f) => acc + f.valor, 0);
+    const saidasDia = movimentacoesDia.filter(f => f.tipo === 'saida').reduce((acc, f) => acc + f.valor, 0);
+    const saldoDia = entradasDia - saidasDia;
+
+    // Calcular formas de pagamento
+    const formasPagamento = movimentacoesDia
+      .filter(f => f.tipo === 'entrada' && f.formaPagamento)
+      .reduce((acc, f) => {
+        acc[f.formaPagamento] = (acc[f.formaPagamento] || 0) + f.valor;
+        return acc;
+      }, {} as Record<string, number>);
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold">Caixa do Dia</h2>
+          <div className="flex gap-2">
+            {caixaAberto ? (
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  if (confirm('Deseja fechar o caixa?')) {
+                    setCaixaAberto(false);
+                    alert(`Caixa fechado!\nSaldo final: R$ ${(caixaValorAbertura + saldoDia).toFixed(2)}`);
+                  }
+                }}
+              >
+                Fechar Caixa
+              </Button>
+            ) : (
+              <Button onClick={() => setShowCaixaDialog(true)}>
+                Abrir Caixa
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Status do Caixa */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className={caixaAberto ? "border-green-500" : "border-red-500"}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className={cn("p-2 rounded-lg", caixaAberto ? "bg-green-100" : "bg-red-100")}>
+                  <Wallet className={cn("w-6 h-6", caixaAberto ? "text-green-600" : "text-red-600")} />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className={cn("font-bold", caixaAberto ? "text-green-600" : "text-red-600")}>
+                    {caixaAberto ? 'ABERTO' : 'FECHADO'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-100">
+                  <DollarSign className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Abertura</p>
+                  <p className="font-bold text-blue-600">R$ {caixaValorAbertura.toFixed(2)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-green-500">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-100">
+                  <TrendingUp className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Entradas</p>
+                  <p className="font-bold text-green-600">R$ {entradasDia.toFixed(2)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-red-500">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-red-100">
+                  <TrendingDown className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Saídas</p>
+                  <p className="font-bold text-red-600">R$ {saidasDia.toFixed(2)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Saldo Total */}
+        <Card className="bg-gradient-to-r from-primary/10 to-accent/10">
+          <CardContent className="p-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-muted-foreground">Saldo Atual do Caixa</p>
+                <p className="text-4xl font-bold text-primary">
+                  R$ {(caixaValorAbertura + saldoDia).toFixed(2)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground">Data</p>
+                <p className="text-lg font-semibold">{format(new Date(), "dd/MM/yyyy")}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Formas de Pagamento */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Formas de Pagamento (Hoje)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Object.entries(formasPagamento).map(([forma, valor]) => (
+                <div key={forma} className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">{forma}</p>
+                  <p className="text-lg font-bold">R$ {valor.toFixed(2)}</p>
+                </div>
+              ))}
+              {Object.keys(formasPagamento).length === 0 && (
+                <div className="col-span-full text-center text-muted-foreground py-4">
+                  Nenhuma venda registrada hoje
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Movimentações do Dia */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Movimentações do Dia</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {movimentacoesDia.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  Nenhuma movimentação registrada hoje
+                </div>
+              ) : (
+                movimentacoesDia.map((mov, index) => (
+                  <div key={index} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
+                    <div>
+                      <p className="font-medium">{mov.descricao}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {mov.formaPagamento || '-'}
+                      </p>
+                    </div>
+                    <p className={cn("font-bold", mov.tipo === 'entrada' ? "text-green-600" : "text-red-600")}>
+                      {mov.tipo === 'entrada' ? '+' : '-'} R$ {mov.valor.toFixed(2)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  // =====================================
   // RENDER COMISSÕES
   // =====================================
   const renderComissoes = () => {
@@ -3002,6 +3188,8 @@ export default function SalonApp() {
         return renderProdutos();
       case 'pdv':
         return renderPDV();
+      case 'caixa':
+        return renderCaixa();
       case 'comissoes':
         return renderComissoes();
       case 'financeiro':
@@ -4281,6 +4469,61 @@ export default function SalonApp() {
               disabled={loading}
             >
               {loading ? "Processando..." : "Confirmar e Finalizar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Caixa Dialog - Abrir Caixa */}
+      <Dialog open={showCaixaDialog} onOpenChange={setShowCaixaDialog}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-primary" />
+              Abrir Caixa
+            </DialogTitle>
+            <DialogDescription>
+              Informe o valor inicial do caixa para começar.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Valor de Abertura</Label>
+              <Input 
+                type="number" 
+                step="0.01"
+                placeholder="0.00"
+                value={caixaValorAbertura || ''}
+                onChange={(e) => setCaixaValorAbertura(parseFloat(e.target.value) || 0)}
+                className="text-2xl font-bold h-14 text-center"
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 gap-2">
+              {[0, 50, 100, 200].map((valor) => (
+                <Button 
+                  key={valor}
+                  variant="outline"
+                  onClick={() => setCaixaValorAbertura(valor)}
+                >
+                  R$ {valor}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCaixaDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => {
+                setCaixaAberto(true);
+                setShowCaixaDialog(false);
+              }}
+            >
+              Abrir Caixa
             </Button>
           </DialogFooter>
         </DialogContent>
