@@ -41,89 +41,110 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  
-  /* Custom Colors */
-  --color-cosmic-blue: #1E3A8A;
-  --color-transformative-teal: #008080;
-  --color-wasabi: #E9F056;
-  --color-cloud-dancer: #F0F4F8;
-  --color-rich-teal: #006666;
 }
 
 :root {
   --radius: 0.625rem;
-  /* Cloud-Dancer - Light Background */
-  --background: #F0F4F8;
-  --foreground: #1E3A8A;
+  
+  /* Modern Light Theme - Elegant Blue & Rose */
+  --background: #FAFBFC;
+  --foreground: #1F2937;
   --card: #FFFFFF;
-  --card-foreground: #1E3A8A;
+  --card-foreground: #1F2937;
   --popover: #FFFFFF;
-  --popover-foreground: #1E3A8A;
-  /* Cosmic Blue - Primary */
-  --primary: #1E3A8A;
+  --popover-foreground: #1F2937;
+  
+  /* Primary - Deep Elegant Blue */
+  --primary: #2563EB;
   --primary-foreground: #FFFFFF;
-  /* Rich Teal - Secondary */
-  --secondary: #006666;
-  --secondary-foreground: #FFFFFF;
-  --muted: #E5E9ED;
-  --muted-foreground: #5A6B7A;
-  /* Transformative Teal - Accent */
-  --accent: #008080;
+  
+  /* Secondary - Soft Slate */
+  --secondary: #F1F5F9;
+  --secondary-foreground: #475569;
+  
+  /* Muted - Subtle Gray */
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  
+  /* Accent - Coral Rose (para salão de beleza) */
+  --accent: #F43F5E;
   --accent-foreground: #FFFFFF;
-  /* Wasabi - Action Buttons */
-  --destructive: #DC2626;
-  --border: #D1D9E0;
-  --input: #D1D9E0;
-  --ring: #1E3A8A;
-  /* Charts */
-  --chart-1: #1E3A8A;
-  --chart-2: #008080;
-  --chart-3: #E9F056;
-  --chart-4: #006666;
-  --chart-5: #3B82F6;
-  /* Sidebar */
-  --sidebar: #1E3A8A;
-  --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #E9F056;
-  --sidebar-primary-foreground: #1E3A8A;
-  --sidebar-accent: #008080;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #1E3A8A;
-  --sidebar-ring: #E9F056;
+  
+  /* Destructive */
+  --destructive: #EF4444;
+  
+  /* Borders & Inputs */
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #2563EB;
+  
+  /* Charts - Vibrant & Harmonious */
+  --chart-1: #2563EB;
+  --chart-2: #F43F5E;
+  --chart-3: #10B981;
+  --chart-4: #F59E0B;
+  --chart-5: #8B5CF6;
+  
+  /* Sidebar - Dark Elegant */
+  --sidebar: #1E293B;
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-primary: #F43F5E;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #334155;
+  --sidebar-accent-foreground: #F8FAFC;
+  --sidebar-border: #334155;
+  --sidebar-ring: #F43F5E;
 }
 
 .dark {
+  /* Modern Dark Theme */
   --background: #0F172A;
-  --foreground: #F0F4F8;
+  --foreground: #F1F5F9;
   --card: #1E293B;
-  --card-foreground: #F0F4F8;
+  --card-foreground: #F1F5F9;
   --popover: #1E293B;
-  --popover-foreground: #F0F4F8;
+  --popover-foreground: #F1F5F9;
+  
+  /* Primary - Bright Blue */
   --primary: #3B82F6;
   --primary-foreground: #FFFFFF;
-  --secondary: #006666;
-  --secondary-foreground: #FFFFFF;
+  
+  /* Secondary - Dark Slate */
+  --secondary: #334155;
+  --secondary-foreground: #F1F5F9;
+  
+  /* Muted */
   --muted: #334155;
   --muted-foreground: #94A3B8;
-  --accent: #008080;
-  --accent-foreground: #FFFFFF;
-  --destructive: #EF4444;
+  
+  /* Accent - Vibrant Rose */
+  --accent: #FB7185;
+  --accent-foreground: #0F172A;
+  
+  /* Destructive */
+  --destructive: #F87171;
+  
+  /* Borders & Inputs */
   --border: #334155;
   --input: #334155;
   --ring: #3B82F6;
+  
+  /* Charts */
   --chart-1: #3B82F6;
-  --chart-2: #008080;
-  --chart-3: #E9F056;
-  --chart-4: #006666;
-  --chart-5: #60A5FA;
+  --chart-2: #FB7185;
+  --chart-3: #34D399;
+  --chart-4: #FBBF24;
+  --chart-5: #A78BFA;
+  
+  /* Sidebar */
   --sidebar: #0F172A;
-  --sidebar-foreground: #F0F4F8;
-  --sidebar-primary: #E9F056;
-  --sidebar-primary-foreground: #0F172A;
-  --sidebar-accent: #008080;
-  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-foreground: #F1F5F9;
+  --sidebar-primary: #F43F5E;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E293B;
+  --sidebar-accent-foreground: #F1F5F9;
   --sidebar-border: #1E293B;
-  --sidebar-ring: #E9F056;
+  --sidebar-ring: #F43F5E;
 }
 
 @layer base {
