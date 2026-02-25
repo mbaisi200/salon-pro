@@ -2921,18 +2921,27 @@ export default function SalonApp() {
   // =====================================
   const renderCaixa = () => {
     const hoje = format(new Date(), 'yyyy-MM-dd');
-    
+
+    // Determinar o período de filtro ativo
+    const filtroAtivo = caixaFiltroDataInicio || caixaFiltroDataFim ? 'periodo' : 'data';
+
     // Filtrar movimentações por período selecionado
     let movimentacoesFiltradas = financeiro;
+    let periodoDescricao = '';
+
     if (caixaFiltroDataInicio && caixaFiltroDataFim) {
       movimentacoesFiltradas = financeiro.filter(f => f.data >= caixaFiltroDataInicio && f.data <= caixaFiltroDataFim);
+      periodoDescricao = `${format(new Date(caixaFiltroDataInicio), 'dd/MM/yyyy')} até ${format(new Date(caixaFiltroDataFim), 'dd/MM/yyyy')}`;
     } else if (caixaFiltroDataInicio) {
       movimentacoesFiltradas = financeiro.filter(f => f.data >= caixaFiltroDataInicio);
+      periodoDescricao = `A partir de ${format(new Date(caixaFiltroDataInicio), 'dd/MM/yyyy')}`;
     } else if (caixaFiltroDataFim) {
       movimentacoesFiltradas = financeiro.filter(f => f.data <= caixaFiltroDataFim);
+      periodoDescricao = `Até ${format(new Date(caixaFiltroDataFim), 'dd/MM/yyyy')}`;
     } else {
       // Por padrão, mostrar do dia
       movimentacoesFiltradas = financeiro.filter(f => f.data === caixaFiltroData);
+      periodoDescricao = format(new Date(caixaFiltroData), "dd/MM/yyyy (EEEE)", { locale: ptBR });
     }
     
     const entradas = movimentacoesFiltradas.filter(f => f.tipo === 'entrada').reduce((acc, f) => acc + f.valor, 0);
@@ -3048,6 +3057,19 @@ export default function SalonApp() {
           <Button variant="outline" size="sm" className="h-8" onClick={() => { setCaixaFiltroData(hoje); setCaixaFiltroDataInicio(''); setCaixaFiltroDataFim(''); }}>
             <X className="w-3 h-3 mr-1" /> Hoje
           </Button>
+        </div>
+
+        {/* Período Filtrado */}
+        <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+              Período: {periodoDescricao}
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {movimentacoesFiltradas.length} movimentação(ões)
+          </span>
         </div>
 
         {/* Status do Caixa */}
@@ -4151,7 +4173,7 @@ export default function SalonApp() {
                   name="hora"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hora</FormLabel>
+                      <FormLabel>Hora Início</FormLabel>
                       <FormControl>
                         <Input type="time" {...field} />
                       </FormControl>
@@ -4159,6 +4181,46 @@ export default function SalonApp() {
                     </FormItem>
                   )}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={agendamentoForm.control}
+                  name="duracao"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Duração (minutos)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 30)}
+                          min={5}
+                          step={5}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormItem>
+                  <FormLabel>Horário Término</FormLabel>
+                  <div className="flex h-10 items-center px-3 rounded-md border bg-muted/50">
+                    <Clock className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <span className="font-medium">
+                      {agendamentoForm.watch('hora') && agendamentoForm.watch('duracao')
+                        ? (() => {
+                            const hora = agendamentoForm.watch('hora');
+                            const duracao = agendamentoForm.watch('duracao') || 30;
+                            const [h, m] = hora.split(':').map(Number);
+                            const totalMinutos = h * 60 + m + duracao;
+                            const novaH = Math.floor(totalMinutos / 60) % 24;
+                            const novaM = totalMinutos % 60;
+                            return `${String(novaH).padStart(2, '0')}:${String(novaM).padStart(2, '0')}`;
+                          })()
+                        : '--:--'}
+                    </span>
+                  </div>
+                </FormItem>
               </div>
               <FormField
                 control={agendamentoForm.control}
@@ -4207,7 +4269,14 @@ export default function SalonApp() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Serviço</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || undefined}>
+                    <Select onValueChange={(value) => {
+                      field.onChange(value);
+                      // Preencher duração automaticamente ao selecionar serviço
+                      const servico = servicos.find((s: any) => s.nome === value);
+                      if (servico) {
+                        agendamentoForm.setValue('duracao', servico.duracao || 30);
+                      }
+                    }} value={field.value || undefined}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o serviço" />
@@ -4215,7 +4284,7 @@ export default function SalonApp() {
                       </FormControl>
                       <SelectContent>
                         {servicos.map((s: any) => (
-                          <SelectItem key={s.id} value={s.nome}>{s.nome}</SelectItem>
+                          <SelectItem key={s.id} value={s.nome}>{s.nome} ({s.duracao || 30} min)</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
