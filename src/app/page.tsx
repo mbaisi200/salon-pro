@@ -1680,15 +1680,15 @@ export default function SalonApp() {
     
     return (
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-900 border-r dark:border-gray-800 transition-transform duration-300 lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0 flex flex-col",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex items-center justify-between h-16 px-4 border-b dark:border-gray-800">
+        <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Scissors className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <Scissors className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="font-bold text-blue-600">
+            <span className="font-bold text-primary">
               Salon System
             </span>
           </div>
@@ -1697,7 +1697,7 @@ export default function SalonApp() {
           </Button>
         </div>
         
-        <ScrollArea className="flex-1 h-[calc(100vh-4rem)]">
+        <ScrollArea className="flex-1 min-h-0">
           <nav className="p-4 space-y-1">
             {menuItems.map((item) => (
               <Button
@@ -1705,7 +1705,7 @@ export default function SalonApp() {
                 variant="ghost"
                 className={cn(
                   "w-full justify-start gap-3",
-                  currentView === item.id && "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                  currentView === item.id && "bg-sidebar-accent text-sidebar-accent-foreground"
                 )}
                 onClick={() => setCurrentView(item.id as any)}
               >
@@ -1716,7 +1716,7 @@ export default function SalonApp() {
           </nav>
         </ScrollArea>
         
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t dark:border-gray-800">
+        <div className="shrink-0 p-4 border-t border-sidebar-border">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-muted-foreground">Tema</span>
             <Button variant="ghost" size="icon" onClick={toggleDarkMode}>
