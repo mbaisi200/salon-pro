@@ -111,6 +111,8 @@ const produtoSchema = z.object({
 const agendamentoSchema = z.object({
   data: z.string().min(1, 'Data é obrigatória'),
   hora: z.string().min(1, 'Hora é obrigatória'),
+  horaFim: z.string().optional(),
+  duracao: z.number().min(5).default(30),
   clienteNome: z.string().min(1, 'Selecione um cliente'),
   clienteTelefone: z.string().optional(),
   servico: z.string().min(1, 'Selecione um serviço'),
@@ -298,7 +300,7 @@ export default function SalonApp() {
   const agendamentoForm = useForm<z.infer<typeof agendamentoSchema>>({
     resolver: zodResolver(agendamentoSchema),
     defaultValues: {
-      data: '', hora: '', clienteNome: '', clienteTelefone: '', servico: '', profissional: '', status: 'Pendente'
+      data: '', hora: '', horaFim: '', duracao: 30, clienteNome: '', clienteTelefone: '', servico: '', profissional: '', status: 'Pendente'
     },
   });
 
@@ -725,15 +727,60 @@ export default function SalonApp() {
     }
     
     try {
-      // Buscar o serviço para pegar o preço
+      // Buscar o serviço para pegar o preço e duração
       const servicoEncontrado = servicos.find((s: any) => s.nome === data.servico);
       const valorServico = servicoEncontrado?.preco || data.valor || 0;
+      const duracaoServico = servicoEncontrado?.duracao || data.duracao || 30;
+      
+      // Calcular hora fim
+      const calcularHoraFim = (horaInicio: string, duracao: number): string => {
+        const [h, m] = horaInicio.split(':').map(Number);
+        const totalMinutos = h * 60 + m + duracao;
+        const novaH = Math.floor(totalMinutos / 60) % 24;
+        const novaM = totalMinutos % 60;
+        return `${String(novaH).padStart(2, '0')}:${String(novaM).padStart(2, '0')}`;
+      };
+      
+      const horaFim = calcularHoraFim(data.hora, duracaoServico);
+      
+      // Verificar conflitos de horário
+      const verificarConflito = (): boolean => {
+        const agendamentosDoDia = agendamentos.filter((a: any) => 
+          a.data === data.data && 
+          a.profissional === data.profissional &&
+          a.id !== editingItem?.id &&
+          a.status !== 'Cancelado'
+        );
+        
+        for (const ag of agendamentosDoDia) {
+          const agHoraInicio = ag.hora;
+          const agHoraFim = ag.horaFim || calcularHoraFim(ag.hora, ag.duracao || 30);
+          
+          // Verificar se há sobreposição
+          if (
+            (data.hora >= agHoraInicio && data.hora < agHoraFim) ||
+            (horaFim > agHoraInicio && horaFim <= agHoraFim) ||
+            (data.hora <= agHoraInicio && horaFim >= agHoraFim)
+          ) {
+            return true;
+          }
+        }
+        return false;
+      };
+      
+      if (verificarConflito()) {
+        if (!confirm(`ATENÇÃO: Já existe um agendamento para ${data.profissional} neste horário!\n\nDeseja continuar mesmo assim?`)) {
+          return;
+        }
+      }
       
       const agendamentoData = {
         ...data,
         clienteNome: toUpper(data.clienteNome),
         servico: toUpper(data.servico),
         profissional: toUpper(data.profissional),
+        duracao: duracaoServico,
+        horaFim,
         valor: valorServico,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -769,7 +816,7 @@ export default function SalonApp() {
       console.error('Erro ao salvar agendamento:', error);
       alert('Erro ao salvar agendamento: ' + (error.message || 'Erro desconhecido'));
     }
-  }, [db, tenant, editingItem, agendamentoForm, servicos, financeiroForm]);
+  }, [db, tenant, editingItem, agendamentoForm, servicos, financeiroForm, agendamentos]);
   
   const handleDeleteAgendamento = useCallback(async () => {
     if (!deleteConfirm || !tenant) return;
