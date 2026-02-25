@@ -3632,10 +3632,16 @@ export default function SalonApp() {
             <DialogTitle>{editingItem ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
           </DialogHeader>
           <Form {...agendamentoForm}>
-            <form onSubmit={agendamentoForm.handleSubmit(handleSaveAgendamento, (errors) => {
-              console.log('Erros de validação do formulário:', errors);
-              alert('Preencha todos os campos obrigatórios: Data, Hora, Cliente, Serviço e Profissional');
-            })} className="space-y-4">
+            <form onSubmit={(e) => {
+              console.log('=== FORM SUBMIT DISPARADO ===');
+              console.log('Valores do form:', agendamentoForm.getValues());
+              console.log('Erros do form:', agendamentoForm.formState.errors);
+              agendamentoForm.handleSubmit(handleSaveAgendamento, (errors) => {
+                console.log('=== VALIDAÇÃO FALHOU ===');
+                console.log('Erros:', errors);
+                alert('Preencha todos os campos obrigatórios!');
+              })(e);
+            }} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={agendamentoForm.control}
@@ -3782,7 +3788,7 @@ export default function SalonApp() {
                     Excluir
                   </Button>
                 )}
-                <Button type="submit">Salvar</Button>
+                <Button type="submit" onClick={() => console.log('=== BOTÃO SALVAR AGENDAMENTO CLICADO ===')}>Salvar</Button>
               </DialogFooter>
             </form>
           </Form>
