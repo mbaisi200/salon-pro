@@ -235,29 +235,15 @@ export default function SalonApp() {
     { forma: 'Dinheiro', valor: 0 }
   ]);
   
-  // Caixa - com persistência no localStorage
-  const [caixaAberto, setCaixaAberto] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('caixaAberto');
-      return saved === 'true';
-    }
-    return false;
-  });
-  const [caixaValorAbertura, setCaixaValorAbertura] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('caixaValorAbertura');
-      return saved ? parseFloat(saved) : 0;
-    }
-    return 0;
-  });
+  // Caixa - SEM localStorage, sincronizado via Firebase
+  const [caixaAberto, setCaixaAberto] = useState(false);
+  const [caixaValorAbertura, setCaixaValorAbertura] = useState(0);
+  const [caixaDataAbertura, setCaixaDataAbertura] = useState('');
   const [showCaixaDialog, setShowCaixaDialog] = useState(false);
-  const [caixaMovimentacoes, setCaixaMovimentacoes] = useState<any[]>([]);
-  
-  // Persistir estado do caixa
-  useEffect(() => {
-    localStorage.setItem('caixaAberto', String(caixaAberto));
-    localStorage.setItem('caixaValorAbertura', String(caixaValorAbertura));
-  }, [caixaAberto, caixaValorAbertura]);
+  const [caixaFiltroData, setCaixaFiltroData] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [caixaFiltroDataInicio, setCaixaFiltroDataInicio] = useState('');
+  const [caixaFiltroDataFim, setCaixaFiltroDataFim] = useState('');
+  const [caixaHistorico, setCaixaHistorico] = useState<any[]>([]);
   
   // Relatório de Estoque
   const [filtroDataInicio, setFiltroDataInicio] = useState('');
@@ -1087,6 +1073,38 @@ export default function SalonApp() {
         }
       );
       unsubscribersRef.current.push(unsubProdutos);
+
+      // Caixa - Listener para estado atual
+      const caixaRef = doc(db, 'saloes', tenant.id, 'config', 'caixa');
+      const unsubCaixa = onSnapshot(
+        caixaRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            setCaixaAberto(data.aberto || false);
+            setCaixaValorAbertura(data.valorAbertura || 0);
+            setCaixaDataAbertura(data.dataAbertura || '');
+          }
+        },
+        (error) => {
+          console.error('Erro ao escutar caixa:', error);
+        }
+      );
+      unsubscribersRef.current.push(unsubCaixa);
+
+      // Caixa Histórico - Listener
+      const caixaHistoricoRef = collection(db, 'saloes', tenant.id, 'caixaHistorico');
+      const unsubCaixaHistorico = onSnapshot(
+        query(caixaHistoricoRef, orderBy('data', 'desc')),
+        (snapshot) => {
+          const historicoData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+          setCaixaHistorico(historicoData);
+        },
+        (error) => {
+          console.error('Erro ao escutar histórico caixa:', error);
+        }
+      );
+      unsubscribersRef.current.push(unsubCaixaHistorico);
 
             // Profissionais
       const profissionaisRef = collection(db, 'saloes', tenant.id, 'profissionais');
@@ -2857,276 +2875,229 @@ export default function SalonApp() {
   const renderCaixa = () => {
     const hoje = format(new Date(), 'yyyy-MM-dd');
     
-    // Filtrar movimentações do dia
-    const movimentacoesDia = financeiro.filter(f => f.data === hoje);
-    const entradasDia = movimentacoesDia.filter(f => f.tipo === 'entrada').reduce((acc, f) => acc + f.valor, 0);
-    const saidasDia = movimentacoesDia.filter(f => f.tipo === 'saida').reduce((acc, f) => acc + f.valor, 0);
-    const saldoDia = entradasDia - saidasDia;
+    // Filtrar movimentações por período selecionado
+    let movimentacoesFiltradas = financeiro;
+    if (caixaFiltroDataInicio && caixaFiltroDataFim) {
+      movimentacoesFiltradas = financeiro.filter(f => f.data >= caixaFiltroDataInicio && f.data <= caixaFiltroDataFim);
+    } else if (caixaFiltroDataInicio) {
+      movimentacoesFiltradas = financeiro.filter(f => f.data >= caixaFiltroDataInicio);
+    } else if (caixaFiltroDataFim) {
+      movimentacoesFiltradas = financeiro.filter(f => f.data <= caixaFiltroDataFim);
+    } else {
+      // Por padrão, mostrar do dia
+      movimentacoesFiltradas = financeiro.filter(f => f.data === caixaFiltroData);
+    }
+    
+    const entradas = movimentacoesFiltradas.filter(f => f.tipo === 'entrada').reduce((acc, f) => acc + f.valor, 0);
+    const saidas = movimentacoesFiltradas.filter(f => f.tipo === 'saida').reduce((acc, f) => acc + f.valor, 0);
+    const saldo = entradas - saidas;
 
     // Calcular formas de pagamento
-    const formasPagamento = movimentacoesDia
+    const formasPagamento = movimentacoesFiltradas
       .filter(f => f.tipo === 'entrada' && f.formaPagamento)
       .reduce((acc, f) => {
         acc[f.formaPagamento] = (acc[f.formaPagamento] || 0) + f.valor;
         return acc;
       }, {} as Record<string, number>);
 
-    // Função para fechar caixa com confirmação
-    const handleFecharCaixa = () => {
-      const saldoFinal = caixaValorAbertura + saldoDia;
-      const resumo = `
-═══════════════════════════
-       FECHAMENTO DE CAIXA
-═══════════════════════════
-Data: ${format(new Date(), "dd/MM/yyyy")}
-───────────────────────────
-Valor Abertura:  R$ ${caixaValorAbertura.toFixed(2)}
-Entradas:        R$ ${entradasDia.toFixed(2)}
-Saídas:          R$ ${saidasDia.toFixed(2)}
-───────────────────────────
-SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
-═══════════════════════════
-      `;
+    // Função para abrir caixa no Firebase
+    const handleAbrirCaixa = async (valor: number) => {
+      if (!tenant) return;
+      try {
+        const caixaRef = doc(db, 'saloes', tenant.id, 'config', 'caixa');
+        await setDoc(caixaRef, {
+          aberto: true,
+          valorAbertura: valor,
+          dataAbertura: hoje,
+          horaAbertura: format(new Date(), 'HH:mm'),
+          abertoPor: user?.nome || 'Sistema',
+          updatedAt: new Date().toISOString()
+        });
+        setShowCaixaDialog(false);
+      } catch (error) {
+        console.error('Erro ao abrir caixa:', error);
+        alert('Erro ao abrir caixa. Tente novamente.');
+      }
+    };
+
+    // Função para fechar caixa no Firebase
+    const handleFecharCaixa = async () => {
+      if (!tenant) return;
+      const saldoFinal = caixaValorAbertura + saldo;
       
-      if (confirm(resumo + '\n\nDeseja confirmar o fechamento do caixa?')) {
-        setCaixaAberto(false);
-        setCaixaValorAbertura(0);
+      if (!confirm(`Confirmar fechamento do caixa?\n\nSaldo Final: R$ ${saldoFinal.toFixed(2)}`)) return;
+      
+      try {
+        // Salvar histórico do caixa
+        const historicoRef = collection(db, 'saloes', tenant.id, 'caixaHistorico');
+        await addDoc(historicoRef, {
+          data: hoje,
+          dataFechamento: new Date().toISOString(),
+          valorAbertura: caixaValorAbertura,
+          entradas,
+          saidas,
+          saldoFinal,
+          fechadoPor: user?.nome || 'Sistema'
+        });
+        
+        // Fechar caixa atual
+        const caixaRef = doc(db, 'saloes', tenant.id, 'config', 'caixa');
+        await setDoc(caixaRef, {
+          aberto: false,
+          valorAbertura: 0,
+          dataAbertura: '',
+          updatedAt: new Date().toISOString()
+        });
+        
         alert('Caixa fechado com sucesso!');
+      } catch (error) {
+        console.error('Erro ao fechar caixa:', error);
+        alert('Erro ao fechar caixa. Tente novamente.');
       }
     };
 
     return (
-      <div className="space-y-6">
-        {/* Header com Status e Ações */}
+      <div className="space-y-4">
+        {/* Header com Status e Filtros */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h2 className="text-xl font-semibold">Caixa do Dia</h2>
-            <p className="text-muted-foreground">{format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
+            <h2 className="text-xl font-semibold">Caixa</h2>
+            <p className="text-sm text-muted-foreground">
+              {caixaAberto ? `Aberto desde ${caixaDataAbertura ? format(new Date(caixaDataAbertura), 'dd/MM/yyyy') : hoje}` : 'Caixa fechado'}
+            </p>
           </div>
           <div className="flex gap-2">
             {caixaAberto ? (
               <>
-                <Button 
-                  variant="outline"
-                  onClick={() => setShowCaixaDialog(true)}
-                >
-                  <Pencil className="w-4 h-4 mr-2" />
-                  Ajustar Valor
+                <Button variant="outline" size="sm" onClick={() => setShowCaixaDialog(true)}>
+                  <Pencil className="w-4 h-4 mr-1" /> Ajustar
                 </Button>
-                <Button 
-                  variant="destructive" 
-                  onClick={handleFecharCaixa}
-                >
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Fechar Caixa
+                <Button variant="destructive" size="sm" onClick={handleFecharCaixa}>
+                  <XCircle className="w-4 h-4 mr-1" /> Fechar Caixa
                 </Button>
               </>
             ) : (
-              <Button 
-                size="lg"
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => setShowCaixaDialog(true)}
-              >
-                <Wallet className="w-5 h-5 mr-2" />
-                Abrir Caixa
+              <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => setShowCaixaDialog(true)}>
+                <Wallet className="w-4 h-4 mr-1" /> Abrir Caixa
               </Button>
             )}
           </div>
         </div>
 
-        {/* Caixa Fechado - Estado Inicial */}
+        {/* Filtros de Período */}
+        <div className="flex flex-wrap gap-2 items-end p-3 bg-muted/30 rounded-lg">
+          <div>
+            <Label className="text-xs">Data Específica</Label>
+            <Input type="date" value={caixaFiltroData} onChange={e => { setCaixaFiltroData(e.target.value); setCaixaFiltroDataInicio(''); setCaixaFiltroDataFim(''); }} className="h-8 w-36" />
+          </div>
+          <div>
+            <Label className="text-xs">Data Início</Label>
+            <Input type="date" value={caixaFiltroDataInicio} onChange={e => setCaixaFiltroDataInicio(e.target.value)} className="h-8 w-36" />
+          </div>
+          <div>
+            <Label className="text-xs">Data Fim</Label>
+            <Input type="date" value={caixaFiltroDataFim} onChange={e => setCaixaFiltroDataFim(e.target.value)} className="h-8 w-36" />
+          </div>
+          <Button variant="outline" size="sm" className="h-8" onClick={() => { setCaixaFiltroData(hoje); setCaixaFiltroDataInicio(''); setCaixaFiltroDataFim(''); }}>
+            <X className="w-3 h-3 mr-1" /> Hoje
+          </Button>
+        </div>
+
+        {/* Status do Caixa */}
+        {caixaAberto && (
+          <div className="flex items-center gap-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-sm font-medium text-green-700 dark:text-green-400">Caixa Aberto</span>
+          </div>
+        )}
+
         {!caixaAberto && (
-          <Card className="border-2 border-dashed border-muted-foreground/30 bg-muted/20">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-4">
-                <Wallet className="w-10 h-10 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Caixa Fechado</h3>
-              <p className="text-muted-foreground text-center mb-6 max-w-md">
-                O caixa de hoje ainda não foi aberto. Clique no botão acima para iniciar o caixa com o valor inicial.
-              </p>
-              <Button 
-                size="lg"
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => setShowCaixaDialog(true)}
-              >
-                <Wallet className="w-5 h-5 mr-2" />
-                Abrir Caixa Agora
+          <Card className="border-dashed bg-muted/20">
+            <CardContent className="flex flex-col items-center py-8">
+              <Wallet className="w-12 h-12 text-muted-foreground mb-2" />
+              <p className="text-muted-foreground mb-4">O caixa está fechado</p>
+              <Button className="bg-green-600 hover:bg-green-700" onClick={() => setShowCaixaDialog(true)}>
+                <Wallet className="w-4 h-4 mr-2" /> Abrir Caixa
               </Button>
             </CardContent>
           </Card>
         )}
 
-        {/* Caixa Aberto - Dashboard */}
-        {caixaAberto && (
-          <>
-            {/* Status Principal */}
-            <div className="flex items-center gap-2 p-3 bg-green-100 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800">
-              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-              <span className="font-medium text-green-700 dark:text-green-400">Caixa Aberto</span>
-              <span className="text-green-600 dark:text-green-500 ml-auto">
-                Desde {format(new Date(), "HH:mm")}
-              </span>
-            </div>
+        {/* Cards de Resumo */}
+        <div className="grid grid-cols-4 gap-3">
+          <Card className="bg-blue-50 dark:bg-blue-900/20"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Abertura</p><p className="text-lg font-bold text-blue-600">R$ {caixaValorAbertura.toFixed(2)}</p></CardContent></Card>
+          <Card className="bg-green-50 dark:bg-green-900/20"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Entradas</p><p className="text-lg font-bold text-green-600">R$ {entradas.toFixed(2)}</p></CardContent></Card>
+          <Card className="bg-red-50 dark:bg-red-900/20"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Saídas</p><p className="text-lg font-bold text-red-600">R$ {saidas.toFixed(2)}</p></CardContent></Card>
+          <Card className="bg-primary/10"><CardContent className="p-3"><p className="text-xs text-muted-foreground">Saldo</p><p className="text-lg font-bold text-primary">R$ {(caixaValorAbertura + saldo).toFixed(2)}</p></CardContent></Card>
+        </div>
 
-            {/* Cards de Resumo */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
-                      <Wallet className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-blue-600 dark:text-blue-400">Abertura</p>
-                      <p className="text-lg font-bold text-blue-700 dark:text-blue-300">R$ {caixaValorAbertura.toFixed(2)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/50">
-                      <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-green-600 dark:text-green-400">Entradas</p>
-                      <p className="text-lg font-bold text-green-700 dark:text-green-300">R$ {entradasDia.toFixed(2)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/50">
-                      <TrendingDown className="w-5 h-5 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-red-600 dark:text-red-400">Saídas</p>
-                      <p className="text-lg font-bold text-red-700 dark:text-red-300">R$ {saidasDia.toFixed(2)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-primary/10 border-primary/30">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/20">
-                      <DollarSign className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-primary">Saldo Atual</p>
-                      <p className="text-lg font-bold text-primary">R$ {(caixaValorAbertura + saldoDia).toFixed(2)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Saldo Total em Destaque */}
-            <Card className="bg-gradient-to-r from-primary to-blue-700 text-white shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                  <div className="text-center md:text-left">
-                    <p className="text-blue-100 text-sm">Saldo Total do Caixa</p>
-                    <p className="text-4xl font-bold">
-                      R$ {(caixaValorAbertura + saldoDia).toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="flex gap-4 text-center">
-                    <div>
-                      <p className="text-blue-200 text-xs">{movimentacoesDia.filter(f => f.tipo === 'entrada').length} entradas</p>
-                      <p className="text-xl font-semibold">{movimentacoesDia.filter(f => f.tipo === 'saida').length} saídas</p>
-                    </div>
-                  </div>
+        {/* Formas de Pagamento */}
+        <Card>
+          <CardHeader className="py-2"><CardTitle className="text-sm">Formas de Pagamento</CardTitle></CardHeader>
+          <CardContent className="pb-3">
+            <div className="grid grid-cols-4 gap-2">
+              {Object.keys(formasPagamento).length > 0 ? Object.entries(formasPagamento).map(([forma, valor]) => (
+                <div key={forma} className="p-2 bg-muted/50 rounded text-center">
+                  <p className="text-xs text-muted-foreground">{forma}</p>
+                  <p className="font-bold">R$ {valor.toFixed(2)}</p>
                 </div>
-              </CardContent>
-            </Card>
+              )) : <div className="col-span-4 text-center text-sm text-muted-foreground py-2">Sem vendas no período</div>}
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Formas de Pagamento */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <CreditCard className="w-4 h-4" />
-                  Formas de Pagamento
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {Object.entries(formasPagamento).length > 0 ? (
-                    Object.entries(formasPagamento).map(([forma, valor]) => (
-                      <div key={forma} className="p-3 bg-muted/50 rounded-lg border">
-                        <p className="text-xs text-muted-foreground">{forma}</p>
-                        <p className="text-lg font-bold">R$ {valor.toFixed(2)}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="col-span-full text-center text-muted-foreground py-6 bg-muted/30 rounded-lg">
-                      <CreditCard className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      Nenhuma venda registrada hoje
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Movimentações do Dia */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <History className="w-4 h-4" />
-                  Movimentações do Dia ({movimentacoesDia.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="max-h-[300px]">
-                  <div className="space-y-2">
-                    {movimentacoesDia.length === 0 ? (
-                      <div className="text-center text-muted-foreground py-8 bg-muted/30 rounded-lg">
-                        <History className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        Nenhuma movimentação registrada hoje
-                      </div>
-                    ) : (
-                      movimentacoesDia.map((mov, index) => (
-                        <div key={index} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className={cn(
-                              "w-8 h-8 rounded-full flex items-center justify-center",
-                              mov.tipo === 'entrada' ? "bg-green-100 dark:bg-green-900/30" : "bg-red-100 dark:bg-red-900/30"
-                            )}>
-                              {mov.tipo === 'entrada' 
-                                ? <TrendingUp className="w-4 h-4 text-green-600" />
-                                : <TrendingDown className="w-4 h-4 text-red-600" />
-                              }
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">{mov.descricao}</p>
-                              {mov.formaPagamento && (
-                                <Badge variant="secondary" className="text-xs mt-1">
-                                  {mov.formaPagamento}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <p className={cn(
-                            "font-bold text-lg",
-                            mov.tipo === 'entrada' ? "text-green-600" : "text-red-600"
-                          )}>
-                            {mov.tipo === 'entrada' ? '+' : '-'} R$ {mov.valor.toFixed(2)}
-                          </p>
+        {/* Movimentações */}
+        <Card>
+          <CardHeader className="py-2"><CardTitle className="text-sm">Movimentações ({movimentacoesFiltradas.length})</CardTitle></CardHeader>
+          <CardContent className="pb-3">
+            <ScrollArea className="max-h-[250px]">
+              <div className="space-y-1">
+                {movimentacoesFiltradas.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-4">Sem movimentações no período</div>
+                ) : (
+                  movimentacoesFiltradas.map((mov, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-2 bg-muted/30 rounded text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className={cn("w-6 h-6 rounded flex items-center justify-center", mov.tipo === 'entrada' ? "bg-green-100" : "bg-red-100")}>
+                          {mov.tipo === 'entrada' ? <TrendingUp className="w-3 h-3 text-green-600" /> : <TrendingDown className="w-3 h-3 text-red-600" />}
                         </div>
-                      ))
-                    )}
+                        <div>
+                          <p className="font-medium truncate max-w-[200px]">{mov.descricao}</p>
+                          <p className="text-xs text-muted-foreground">{mov.formaPagamento || '-'}</p>
+                        </div>
+                      </div>
+                      <p className={cn("font-bold", mov.tipo === 'entrada' ? "text-green-600" : "text-red-600")}>
+                        {mov.tipo === 'entrada' ? '+' : '-'} R$ {mov.valor.toFixed(2)}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Histórico de Caixas */}
+        {caixaHistorico.length > 0 && (
+          <Card>
+            <CardHeader className="py-2"><CardTitle className="text-sm">Histórico de Caixas</CardTitle></CardHeader>
+            <CardContent className="pb-3">
+              <div className="space-y-1 max-h-[150px] overflow-y-auto">
+                {caixaHistorico.slice(0, 10).map((h, idx) => (
+                  <div key={idx} className="flex justify-between items-center p-2 bg-muted/30 rounded text-xs">
+                    <div>
+                      <p className="font-medium">{h.data ? format(new Date(h.data), 'dd/MM/yyyy') : '-'}</p>
+                      <p className="text-muted-foreground">por {h.fechadoPor || 'Sistema'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-green-600">R$ {(h.saldoFinal || 0).toFixed(2)}</p>
+                      <p className="text-muted-foreground">Ab: R$ {(h.valorAbertura || 0).toFixed(2)}</p>
+                    </div>
                   </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     );
@@ -5003,9 +4974,24 @@ SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
             </Button>
             <Button 
               className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => {
-                setCaixaAberto(true);
-                setShowCaixaDialog(false);
+              onClick={async () => {
+                if (!tenant) return;
+                try {
+                  const caixaRef = doc(db, 'saloes', tenant.id, 'config', 'caixa');
+                  const hoje = format(new Date(), 'yyyy-MM-dd');
+                  await setDoc(caixaRef, {
+                    aberto: true,
+                    valorAbertura: caixaValorAbertura,
+                    dataAbertura: hoje,
+                    horaAbertura: format(new Date(), 'HH:mm'),
+                    abertoPor: user?.nome || 'Sistema',
+                    updatedAt: new Date().toISOString()
+                  });
+                  setShowCaixaDialog(false);
+                } catch (error) {
+                  console.error('Erro ao salvar caixa:', error);
+                  alert('Erro ao salvar caixa. Tente novamente.');
+                }
               }}
             >
               <Check className="w-4 h-4 mr-2" />
