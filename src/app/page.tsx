@@ -251,6 +251,9 @@ export default function SalonApp() {
     { forma: 'Dinheiro', valor: 0 }
   ]);
   
+  // Agendamento sendo finalizado via PDV
+  const [agendamentoFinalizando, setAgendamentoFinalizando] = useState<any>(null);
+  
   // Caixa - SEM localStorage, sincronizado via Firebase
   const [caixaAberto, setCaixaAberto] = useState(false);
   const [caixaValorAbertura, setCaixaValorAbertura] = useState(0);
@@ -849,21 +852,44 @@ export default function SalonApp() {
         await addDoc(collection(db, 'saloes', tenant.id, 'agendamentos'), agendamentoData);
       }
       
-      // Se status for Concluido, abrir modal financeiro automaticamente
+      // Se status for Concluido, ir para o PDV com serviço no carrinho
       if (data.status === 'Concluido') {
         setShowAgendamentoDialog(false);
         setEditingItem(null);
         
-        // Preparar dados do financeiro
-        financeiroForm.reset({
+        // Buscar o cliente pelo nome
+        const clienteDoAgendamento = clientes.find((c: any) => c.nome === toUpper(data.clienteNome));
+        
+        // Preparar o serviço para o carrinho
+        const servicoParaCarrinho = {
+          id: servicoEncontrado?.id || 'servico-temp',
+          nome: toUpper(data.servico),
+          preco: valorServico,
+          type: 'servico',
+          qtd: 1,
+          profissional: toUpper(data.profissional),
+        };
+        
+        // Limpar carrinho anterior e adicionar o serviço
+        setPdvCarrinho([servicoParaCarrinho]);
+        
+        // Selecionar o cliente se encontrado
+        if (clienteDoAgendamento) {
+          setPdvClienteSelecionado(clienteDoAgendamento);
+        }
+        
+        // Guardar informações do agendamento para atualizar depois
+        setAgendamentoFinalizando({
+          id: editingItem?.id,
           data: data.data,
-          descricao: `${data.servico} - ${data.clienteNome} (${data.profissional})`,
-          tipo: 'entrada',
+          servico: toUpper(data.servico),
+          clienteNome: toUpper(data.clienteNome),
+          profissional: toUpper(data.profissional),
           valor: valorServico,
-          formaPagamento: '',
-          observacoes: '',
         });
-        setShowFinanceiroDialog(true);
+        
+        // Ir para o PDV
+        setCurrentView('pdv');
       } else {
         setShowAgendamentoDialog(false);
         agendamentoForm.reset();
@@ -1019,7 +1045,7 @@ export default function SalonApp() {
           const produtoAtual = produtos.find((p: any) => p.id === item.id);
           const estoqueAtual = produtoAtual?.quantidadeEstoque ?? item.quantidadeEstoque ?? 0;
           const novaQtd = Math.max(0, estoqueAtual - item.qtd);
-          
+
           const produtoRef = doc(db, 'saloes', tenant.id, 'produtos', item.id);
           await updateDoc(produtoRef, {
             quantidadeEstoque: novaQtd,
@@ -1027,10 +1053,21 @@ export default function SalonApp() {
           });
         }
       }
-      
-      // 3. Limpar Carrinho e Seleção
+
+      // 3. Atualizar status do agendamento se vier de conclusão
+      if (agendamentoFinalizando && agendamentoFinalizando.id) {
+        const agendamentoRef = doc(db, 'saloes', tenant.id, 'agendamentos', agendamentoFinalizando.id);
+        await updateDoc(agendamentoRef, {
+          status: 'Concluido',
+          valor: pdvTotal, // Atualiza com o valor total da venda (incluindo produtos)
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // 4. Limpar Carrinho e Seleção
       setPdvCarrinho([]);
       setPdvClienteSelecionado(null);
+      setAgendamentoFinalizando(null);
       setShowPdvPagamento(false);
       setPagamentoFracionado(false);
       setPagamentos([{ forma: 'Dinheiro', valor: 0 }]);
@@ -1042,7 +1079,7 @@ export default function SalonApp() {
     } finally {
       setLoading(false);
     }
-  }, [db, tenant, pdvCarrinho, pdvClienteSelecionado, setLoading]);
+  }, [db, tenant, pdvCarrinho, pdvClienteSelecionado, produtos, agendamentoFinalizando, setLoading]);
 
   
 
