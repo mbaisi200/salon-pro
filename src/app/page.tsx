@@ -994,9 +994,13 @@ export default function SalonApp() {
       
       // 2. Atualizar Estoque (apenas para produtos)
       for (const item of pdvCarrinho) {
-        if (item.type === 'produto') {
+        if (item.type === 'produto' && item.id) {
+          // Buscar o produto atual para obter o estoque mais recente
+          const produtoAtual = produtos.find((p: any) => p.id === item.id);
+          const estoqueAtual = produtoAtual?.quantidadeEstoque ?? item.quantidadeEstoque ?? 0;
+          const novaQtd = Math.max(0, estoqueAtual - item.qtd);
+          
           const produtoRef = doc(db, 'saloes', tenant.id, 'produtos', item.id);
-          const novaQtd = Math.max(0, (item.quantidadeEstoque || 0) - item.qtd);
           await updateDoc(produtoRef, {
             quantidadeEstoque: novaQtd,
             updatedAt: new Date().toISOString(),
@@ -3213,8 +3217,18 @@ export default function SalonApp() {
   // RENDER COMISSÕES
   // =====================================
   const renderComissoes = () => {
+    const hoje = new Date();
+    const inicioMes = startOfMonth(hoje);
+    const fimMes = endOfMonth(hoje);
+    
     const comissoesData = profissionais.map(prof => {
-      const servicosProf = agendamentos.filter(a => a.profissionalId === prof.id && a.status === 'Concluido');
+      // Filtrar agendamentos pelo nome do profissional (não pelo ID)
+      const servicosProf = agendamentos.filter(a => 
+        a.profissional === prof.nome && 
+        a.status === 'Concluido' &&
+        a.data >= format(inicioMes, 'yyyy-MM-dd') && 
+        a.data <= format(fimMes, 'yyyy-MM-dd')
+      );
       const totalGerado = servicosProf.reduce((acc, a) => acc + (a.valor || 0), 0);
       const comissao = prof.tipoComissao === 'percentual' 
         ? (totalGerado * (prof.percentualComissao || 0)) / 100 
