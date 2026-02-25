@@ -3253,10 +3253,10 @@ export default function SalonApp() {
 
     // Separar dinheiro de outras formas
     const totalDinheiro = formasPagamento['Dinheiro'] || 0;
-    const totalCartao = (formasPagamento['Crédito'] || 0) + (formasPagamento['Débito'] || 0) + (formasPagamento['Cartão'] || 0);
+    const totalCartao = (formasPagamento['Crédito'] || 0) + (formasPagamento['Débito'] || 0) + (formasPagamento['Cartão'] || 0) + (formasPagamento['Cartão de Crédito'] || 0) + (formasPagamento['Cartão de Débito'] || 0);
     const totalPix = formasPagamento['PIX'] || 0;
     const totalOutros = Object.entries(formasPagamento)
-      .filter(([forma]) => !['Dinheiro', 'Crédito', 'Débito', 'PIX', 'Cartão'].includes(forma))
+      .filter(([forma]) => !['Dinheiro', 'Crédito', 'Débito', 'PIX', 'Cartão', 'Cartão de Crédito', 'Cartão de Débito'].includes(forma))
       .reduce((acc, [, val]) => acc + val, 0);
 
     // Calcular sangrias do período
