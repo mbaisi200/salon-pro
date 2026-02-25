@@ -105,6 +105,7 @@ const produtoSchema = z.object({
   precoCusto: z.number().min(0, 'Preço de custo deve ser maior ou igual a zero').optional(),
   quantidadeEstoque: z.number().min(0, 'Quantidade deve ser maior ou igual a zero'),
   estoqueMinimo: z.number().min(0, 'Estoque mínimo deve ser maior ou igual a zero'),
+  mostrarNoPdv: z.boolean().default(true),
 });
 
 const agendamentoSchema = z.object({
@@ -335,7 +336,8 @@ export default function SalonApp() {
       precoVenda: 0,
       precoCusto: 0,
       quantidadeEstoque: 0,
-      estoqueMinimo: 0
+      estoqueMinimo: 0,
+      mostrarNoPdv: true
     },
   });
 
@@ -3337,7 +3339,7 @@ SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
               
               <TabsContent value="produtos" className="mt-0">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {produtos.map(p => (
+                  {produtos.filter(p => p.mostrarNoPdv !== false).map(p => (
                     <button 
                       key={p.id}
                       className="p-4 rounded-xl border-2 border-transparent hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all text-left group relative overflow-hidden"
@@ -3351,8 +3353,8 @@ SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
                       <div className="text-green-600 font-bold">R$ {parseFloat(p.precoVenda).toFixed(2)}</div>
                     </button>
                   ))}
-                  {produtos.length === 0 && (
-                    <div className="col-span-full text-center py-8 text-muted-foreground">Nenhum produto cadastrado</div>
+                  {produtos.filter(p => p.mostrarNoPdv !== false).length === 0 && (
+                    <div className="col-span-full text-center py-8 text-muted-foreground">Nenhum produto disponível para venda</div>
                   )}
                 </div>
               </TabsContent>
@@ -4514,6 +4516,24 @@ SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
                   )}
                 />
               </div>
+              <FormField
+                control={produtoForm.control}
+                name="mostrarNoPdv"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 bg-muted/30">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-sm font-medium">Mostrar no PDV</FormLabel>
+                      <p className="text-xs text-muted-foreground">Exibir este produto na tela de vendas</p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
               <DialogFooter>
                 <Button type="submit">Salvar Produto</Button>
               </DialogFooter>
@@ -4777,8 +4797,8 @@ SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
           setPagamentos([{ forma: 'Dinheiro', valor: 0 }]);
         }
       }}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-600" />
               Finalizar Pagamento
@@ -4823,21 +4843,16 @@ SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
             };
             
             return (
-              <div className="py-4 space-y-4">
+              <div className="flex-1 overflow-y-auto py-2 space-y-3 min-h-0">
                 {/* Total da Venda */}
-                <div className="text-center p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                  <p className="text-sm text-muted-foreground mb-1">Total a Pagar</p>
-                  <p className="text-4xl font-black text-blue-600">
-                    R$ {totalVenda.toFixed(2)}
-                  </p>
+                <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Total a Pagar</p>
+                  <p className="text-2xl font-black text-blue-600">R$ {totalVenda.toFixed(2)}</p>
                 </div>
 
                 {/* Toggle Pagamento Fracionado */}
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Pagamento em mais de uma forma?</span>
-                  </div>
+                <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                  <span className="text-sm">Pagamento fracionado?</span>
                   <Switch 
                     checked={pagamentoFracionado} 
                     onCheckedChange={(checked) => {
@@ -4852,109 +4867,78 @@ SALDO FINAL:     R$ ${saldoFinal.toFixed(2)}
                 </div>
 
                 {!pagamentoFracionado ? (
-                  /* Pagamento Único */
-                  <div className="space-y-3">
-                    <Label>Forma de Pagamento</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Forma de Pagamento</Label>
                     <div className="grid grid-cols-2 gap-2">
                       {formasPagamento.map((forma) => (
                         <Button
                           key={forma.id}
                           variant={pdvFormaPagamento === forma.id ? "default" : "outline"}
                           className={cn(
-                            "h-16 flex flex-col gap-1 items-center justify-center transition-all",
-                            pdvFormaPagamento === forma.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
+                            "h-12 flex flex-col gap-0.5 items-center justify-center",
+                            pdvFormaPagamento === forma.id ? "ring-2 ring-blue-500" : ""
                           )}
                           onClick={() => setPdvFormaPagamento(forma.id)}
                         >
-                          <forma.icon className={cn("w-5 h-5", pdvFormaPagamento === forma.id ? "text-white" : forma.color)} />
-                          <span className="text-[10px] font-bold uppercase">{forma.id}</span>
+                          <forma.icon className={cn("w-4 h-4", pdvFormaPagamento === forma.id ? "text-white" : forma.color)} />
+                          <span className="text-[9px] font-bold uppercase">{forma.id}</span>
                         </Button>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  /* Pagamento Fracionado */
-                  <div className="space-y-4">
+                  <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label className="text-base">Formas de Pagamento</Label>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={adicionarFormaPagamento}
-                        disabled={pagamentos.length >= 4}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Adicionar
+                      <Label className="text-sm">Formas de Pagamento</Label>
+                      <Button variant="outline" size="sm" onClick={adicionarFormaPagamento} disabled={pagamentos.length >= 4}>
+                        <Plus className="w-3 h-3 mr-1" /> Adicionar
                       </Button>
                     </div>
                     
-                    <div className="space-y-3">
+                    <div className="space-y-2 max-h-[150px] overflow-y-auto">
                       {pagamentos.map((pag, index) => (
-                        <div key={index} className="flex gap-2 items-start p-3 bg-muted/30 rounded-lg border">
-                          <div className="flex-1 space-y-2">
-                            <Select 
-                              value={pag.forma} 
-                              onValueChange={(v) => atualizarPagamento(index, 'forma', v)}
-                            >
-                              <SelectTrigger className="h-10">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {formasPagamento.map(f => (
-                                  <SelectItem key={f.id} value={f.id}>{f.id}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="0,00"
-                                value={pag.valor || ''}
-                                onChange={(e) => atualizarPagamento(index, 'valor', e.target.value)}
-                                className="pl-10 h-10"
-                              />
-                            </div>
-                          </div>
+                        <div key={index} className="flex gap-2 items-center p-2 bg-muted/30 rounded border">
+                          <Select value={pag.forma} onValueChange={(v) => atualizarPagamento(index, 'forma', v)}>
+                            <SelectTrigger className="h-8 text-sm flex-1"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {formasPagamento.map(f => (<SelectItem key={f.id} value={f.id}>{f.id}</SelectItem>))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="R$"
+                            value={pag.valor || ''}
+                            onChange={(e) => atualizarPagamento(index, 'valor', e.target.value)}
+                            className="h-8 w-24 text-sm"
+                          />
                           {pagamentos.length > 1 && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              className="text-red-500 hover:text-red-700 hover:bg-red-100"
-                              onClick={() => removerFormaPagamento(index)}
-                            >
-                              <Trash2 className="w-4 h-4" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => removerFormaPagamento(index)}>
+                              <X className="w-4 h-4" />
                             </Button>
                           )}
                         </div>
                       ))}
                     </div>
                     
-                    {/* Resumo do Pagamento Fracionado */}
-                    <div className="p-3 rounded-lg border-2 border-dashed space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Total da venda:</span>
+                    <div className="p-2 rounded bg-muted/50 text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span>Total:</span>
                         <span className="font-bold">R$ {totalVenda.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Total pago:</span>
-                        <span className={cn("font-bold", totalPago >= totalVenda ? "text-green-600" : "text-orange-600")}>
-                          R$ {totalPago.toFixed(2)}
-                        </span>
+                      <div className="flex justify-between">
+                        <span>Pago:</span>
+                        <span className={cn("font-bold", totalPago >= totalVenda ? "text-green-600" : "text-orange-600")}>R$ {totalPago.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between text-sm pt-2 border-t">
+                      <div className="flex justify-between border-t pt-1">
                         <span>{restante > 0 ? 'Falta:' : 'Troco:'}</span>
-                        <span className={cn("font-bold text-lg", restante > 0 ? "text-red-600" : "text-green-600")}>
-                          R$ {Math.abs(restante).toFixed(2)}
-                        </span>
+                        <span className={cn("font-bold", restante > 0 ? "text-red-600" : "text-green-600")}>R$ {Math.abs(restante).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
                 )}
                 
-                {/* Botões de Ação */}
-                <DialogFooter className="gap-2 pt-4">
+                <DialogFooter className="shrink-0 gap-2 pt-2 border-t">
                   <Button variant="outline" onClick={() => {
                     setShowPdvPagamento(false);
                     setPagamentoFracionado(false);
