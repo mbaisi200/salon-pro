@@ -228,11 +228,35 @@ export default function SalonApp() {
   const [showPdvPagamento, setShowPdvPagamento] = useState(false);
   const [pdvFormaPagamento, setPdvFormaPagamento] = useState<string>("Dinheiro");
   
-  // Caixa
-  const [caixaAberto, setCaixaAberto] = useState(false);
-  const [caixaValorAbertura, setCaixaValorAbertura] = useState(0);
+  // Caixa - com persistência no localStorage
+  const [caixaAberto, setCaixaAberto] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('caixaAberto');
+      return saved === 'true';
+    }
+    return false;
+  });
+  const [caixaValorAbertura, setCaixaValorAbertura] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('caixaValorAbertura');
+      return saved ? parseFloat(saved) : 0;
+    }
+    return 0;
+  });
   const [showCaixaDialog, setShowCaixaDialog] = useState(false);
   const [caixaMovimentacoes, setCaixaMovimentacoes] = useState<any[]>([]);
+  
+  // Persistir estado do caixa
+  useEffect(() => {
+    localStorage.setItem('caixaAberto', String(caixaAberto));
+    localStorage.setItem('caixaValorAbertura', String(caixaValorAbertura));
+  }, [caixaAberto, caixaValorAbertura]);
+  
+  // Relatório de Estoque
+  const [filtroDataInicio, setFiltroDataInicio] = useState('');
+  const [filtroDataFim, setFiltroDataFim] = useState('');
+  const [filtroProduto, setFiltroProduto] = useState('todos');
+  const [showRelatorioEstoque, setShowRelatorioEstoque] = useState(false);
   
   // Histórico do cliente
   const [showClienteHistorico, setShowClienteHistorico] = useState(false);
@@ -2514,72 +2538,276 @@ export default function SalonApp() {
   // RENDER ESTOQUE (PRODUTOS)
   // =====================================
   const renderProdutos = () => {
+    // Calcular vendas por produto baseado no financeiro
+    const getVendasPorProduto = () => {
+      let vendasFiltradas = financeiro.filter(f => f.tipo === 'entrada');
+      
+      // Aplicar filtros de data
+      if (filtroDataInicio) {
+        vendasFiltradas = vendasFiltradas.filter(f => f.data >= filtroDataInicio);
+      }
+      if (filtroDataFim) {
+        vendasFiltradas = vendasFiltradas.filter(f => f.data <= filtroDataFim);
+      }
+      
+      // Agrupar por produto extraído da descrição
+      const vendasPorProduto: Record<string, { qtd: number; total: number; clientes: string[]; datas: string[] }> = {};
+      
+      vendasFiltradas.forEach(f => {
+        // Extrair produtos da descrição (formato: "VENDA PDV - CLIENTE (1x PRODUTO, 2x OUTRO)")
+        const match = f.descricao?.match(/\((.*?)\)/);
+        if (match) {
+          const itens = match[1].split(',').map((i: string) => i.trim());
+          itens.forEach((item: string) => {
+            const qtdMatch = item.match(/(\d+)x\s+(.+)/);
+            if (qtdMatch) {
+              const qtd = parseInt(qtdMatch[1]);
+              const produtoNome = qtdMatch[2].toUpperCase();
+              
+              // Extrair cliente
+              const clienteMatch = f.descricao?.match(/VENDA PDV - (.+?) \(/);
+              const cliente = clienteMatch ? clienteMatch[1] : 'CONSUMIDOR';
+              
+              if (!vendasPorProduto[produtoNome]) {
+                vendasPorProduto[produtoNome] = { qtd: 0, total: 0, clientes: [], datas: [] };
+              }
+              
+              vendasPorProduto[produtoNome].qtd += qtd;
+              vendasPorProduto[produtoNome].total += f.valor / itens.length;
+              if (!vendasPorProduto[produtoNome].clientes.includes(cliente)) {
+                vendasPorProduto[produtoNome].clientes.push(cliente);
+              }
+              vendasPorProduto[produtoNome].datas.push(f.data);
+            }
+          });
+        }
+      });
+      
+      // Converter para array e filtrar por produto específico
+      let resultado = Object.entries(vendasPorProduto).map(([nome, dados]) => ({
+        nome,
+        ...dados
+      }));
+      
+      if (filtroProduto !== 'todos') {
+        const produtoNome = produtos.find(p => p.id === filtroProduto)?.nome?.toUpperCase();
+        resultado = resultado.filter(r => r.nome === produtoNome);
+      }
+      
+      return resultado.sort((a, b) => b.total - a.total);
+    };
+    
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">Controle de Estoque</h2>
-          <Button onClick={() => {
-            setEditingItem(null);
-            produtoForm.reset({ nome: '', descricao: '', precoVenda: 0, precoCusto: 0, quantidadeEstoque: 0, estoqueMinimo: 0 });
-            setShowProdutoDialog(true);
-          }}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Produto
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowRelatorioEstoque(!showRelatorioEstoque)}>
+              <FileText className="w-4 h-4 mr-2" />
+              {showRelatorioEstoque ? 'Voltar ao Estoque' : 'Relatório de Vendas'}
+            </Button>
+            <Button onClick={() => {
+              setEditingItem(null);
+              produtoForm.reset({ nome: '', descricao: '', precoVenda: 0, precoCusto: 0, quantidadeEstoque: 0, estoqueMinimo: 0 });
+              setShowProdutoDialog(true);
+            }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Produto
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Package className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Itens</p>
-                <p className="text-2xl font-bold">{produtos.length}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Estoque Baixo</p>
-                <p className="text-2xl font-bold text-red-600">
-                  {produtos.filter(p => p.quantidadeEstoque <= p.estoqueMinimo).length}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <DollarSign className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Valor em Estoque</p>
-                <p className="text-2xl font-bold text-green-600">
-                  R$ {produtos.reduce((acc, p) => acc + (p.precoCusto * p.quantidadeEstoque), 0).toFixed(2)}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {showRelatorioEstoque ? (
+          // RELATÓRIO DE VENDAS POR PRODUTO
+          <div className="space-y-6">
+            {/* Filtros */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Filtros</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label>Data Início</Label>
+                    <Input 
+                      type="date" 
+                      value={filtroDataInicio}
+                      onChange={(e) => setFiltroDataInicio(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Data Fim</Label>
+                    <Input 
+                      type="date" 
+                      value={filtroDataFim}
+                      onChange={(e) => setFiltroDataFim(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Produto</Label>
+                    <Select value={filtroProduto} onValueChange={setFiltroProduto}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos os Produtos</SelectItem>
+                        {produtos.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button variant="outline" onClick={() => {
+                      setFiltroDataInicio('');
+                      setFiltroDataFim('');
+                      setFiltroProduto('todos');
+                    }}>
+                      <X className="w-4 h-4 mr-2" />
+                      Limpar
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left p-4 font-medium">Produto</th>
-                    <th className="text-center p-4 font-medium">Qtd. Atual</th>
-                    <th className="text-center p-4 font-medium">Mínimo</th>
-                    <th className="text-right p-4 font-medium">Preço Custo</th>
-                    <th className="text-right p-4 font-medium">Preço Venda</th>
-                    <th className="text-right p-4 font-medium">Ações</th>
+            {/* Resumo */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="bg-primary/5">
+                <CardContent className="p-4">
+                  <p className="text-sm text-muted-foreground">Total Vendido</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {getVendasPorProduto().reduce((acc, v) => acc + v.qtd, 0)} itens
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="bg-green-500/5">
+                <CardContent className="p-4">
+                  <p className="text-sm text-muted-foreground">Faturamento</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    R$ {getVendasPorProduto().reduce((acc, v) => acc + v.total, 0).toFixed(2)}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="bg-accent/5">
+                <CardContent className="p-4">
+                  <p className="text-sm text-muted-foreground">Produtos</p>
+                  <p className="text-2xl font-bold text-accent">
+                    {getVendasPorProduto().length}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tabela de Vendas */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Vendas por Produto</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left p-3 font-medium">Produto</th>
+                        <th className="text-center p-3 font-medium">Qtd.</th>
+                        <th className="text-right p-3 font-medium">Total</th>
+                        <th className="text-left p-3 font-medium">Clientes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getVendasPorProduto().length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="text-center p-8 text-muted-foreground">
+                            Nenhuma venda encontrada
+                          </td>
+                        </tr>
+                      ) : (
+                        getVendasPorProduto().map((venda, index) => (
+                          <tr key={index} className="border-b hover:bg-muted/30">
+                            <td className="p-3 font-medium">{venda.nome}</td>
+                            <td className="p-3 text-center">{venda.qtd}</td>
+                            <td className="p-3 text-right text-green-600 font-bold">
+                              R$ {venda.total.toFixed(2)}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex flex-wrap gap-1">
+                                {venda.clientes.slice(0, 3).map((cliente, i) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">
+                                    {cliente}
+                                  </Badge>
+                                ))}
+                                {venda.clientes.length > 3 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    +{venda.clientes.length - 3}
+                                  </Badge>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          // VISÃO NORMAL DO ESTOQUE
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="p-6 flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-lg">
+                    <Package className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total de Itens</p>
+                    <p className="text-2xl font-bold">{produtos.length}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-6 flex items-center gap-4">
+                  <div className="p-3 bg-destructive/10 rounded-lg">
+                    <AlertTriangle className="w-6 h-6 text-destructive" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Estoque Baixo</p>
+                    <p className="text-2xl font-bold text-destructive">
+                      {produtos.filter(p => p.quantidadeEstoque <= p.estoqueMinimo).length}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-6 flex items-center gap-4">
+                  <div className="p-3 bg-green-500/10 rounded-lg">
+                    <DollarSign className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Valor em Estoque</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      R$ {produtos.reduce((acc, p) => acc + ((p.precoCusto || 0) * p.quantidadeEstoque), 0).toFixed(2)}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left p-4 font-medium">Produto</th>
+                        <th className="text-center p-4 font-medium">Qtd. Atual</th>
+                        <th className="text-center p-4 font-medium">Mínimo</th>
+                        <th className="text-right p-4 font-medium">Preço Custo</th>
+                        <th className="text-right p-4 font-medium">Preço Venda</th>
+                        <th className="text-right p-4 font-medium">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2624,6 +2852,8 @@ export default function SalonApp() {
             </div>
           </CardContent>
         </Card>
+          </>
+        )}
       </div>
     );
   };
@@ -3239,6 +3469,7 @@ export default function SalonApp() {
               currentView === 'servicos' ? 'Serviços' :
               currentView === 'produtos' ? 'Estoque' :
               currentView === 'pdv' ? 'Vendas (PDV)' :
+              currentView === 'caixa' ? 'Caixa' :
               currentView === 'comissoes' ? 'Comissões' :
               currentView === 'financeiro' ? 'Financeiro' : 'Agenda'
             )}
