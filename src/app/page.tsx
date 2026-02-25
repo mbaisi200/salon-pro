@@ -686,11 +686,21 @@ export default function SalonApp() {
   }, [db, tenant, setAgendamentos]);
   
   const handleSaveAgendamento = useCallback(async (data: z.infer<typeof agendamentoSchema>) => {
-    console.log('handleSaveAgendamento chamado com dados:', data);
+    console.log('=== INÍCIO handleSaveAgendamento ===');
+    console.log('Dados recebidos:', data);
+    console.log('Tenant:', tenant);
+    console.log('DB:', db ? 'OK' : 'NULL');
     
     if (!tenant) {
       console.error('Tenant não definido!');
       alert('Erro: Salão não identificado. Faça login novamente.');
+      return;
+    }
+    
+    // Verificar se há dados obrigatórios
+    if (!data.data || !data.hora || !data.clienteNome || !data.servico || !data.profissional) {
+      console.error('Dados obrigatórios faltando:', { data: data.data, hora: data.hora, cliente: data.clienteNome, servico: data.servico, profissional: data.profissional });
+      alert('Preencha todos os campos obrigatórios!');
       return;
     }
     
@@ -718,15 +728,17 @@ export default function SalonApp() {
         updatedAt: new Date().toISOString(),
       };
       
-      console.log('Salvando agendamento no Firebase:', agendamentoData);
-      console.log('Tenant ID:', tenant.id);
+      console.log('Salvando agendamento:', agendamentoData);
+      console.log('Caminho: saloes/' + tenant.id + '/agendamentos');
       
       if (editingItem) {
         await setDoc(doc(db, 'saloes', tenant.id, 'agendamentos', editingItem.id), agendamentoData, { merge: true });
-        console.log('Agendamento atualizado com sucesso!');
+        console.log('Agendamento atualizado!');
+        alert('Agendamento atualizado com sucesso!');
       } else {
         const docRef = await addDoc(collection(db, 'saloes', tenant.id, 'agendamentos'), agendamentoData);
-        console.log('Agendamento criado com sucesso! ID:', docRef.id);
+        console.log('Agendamento criado! ID:', docRef.id);
+        alert('Agendamento criado com sucesso!');
       }
       
       // Se status for Concluido, abrir modal financeiro automaticamente
@@ -750,8 +762,11 @@ export default function SalonApp() {
         setEditingItem(null);
       }
     } catch (error: any) {
-      console.error('Erro ao salvar agendamento:', error);
-      alert('Erro ao salvar agendamento: ' + (error.message || 'Erro desconhecido'));
+      console.error('=== ERRO AO SALVAR ===');
+      console.error('Erro completo:', error);
+      console.error('Mensagem:', error.message);
+      console.error('Código:', error.code);
+      alert('Erro ao salvar: ' + (error.message || 'Erro desconhecido') + '\nCódigo: ' + (error.code || 'N/A'));
     }
   }, [db, tenant, editingItem, agendamentoForm, servicos, financeiroForm]);
   
