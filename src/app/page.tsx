@@ -958,7 +958,37 @@ export default function SalonApp() {
     if (!deleteConfirm || !tenant) return;
     
     try {
-      await deleteDoc(doc(db, 'saloes', tenant.id, 'financeiro', deleteConfirm.id));
+      // Buscar o lançamento para verificar se tem produtos vendidos
+      const lancamentoRef = doc(db, 'saloes', tenant.id, 'financeiro', deleteConfirm.id);
+      const lancamentoSnap = await getDoc(lancamentoRef);
+      
+      if (lancamentoSnap.exists()) {
+        const lancamentoData = lancamentoSnap.data();
+        
+        // Se tem produtos vendidos, restaurar o estoque
+        if (lancamentoData.produtosVendidos && Array.isArray(lancamentoData.produtosVendidos)) {
+          for (const prod of lancamentoData.produtosVendidos) {
+            if (prod.id) {
+              // Buscar produto atual
+              const produtoRef = doc(db, 'saloes', tenant.id, 'produtos', prod.id);
+              const produtoSnap = await getDoc(produtoRef);
+              
+              if (produtoSnap.exists()) {
+                const estoqueAtual = produtoSnap.data().quantidadeEstoque || 0;
+                const novoEstoque = estoqueAtual + prod.qtd;
+                
+                await updateDoc(produtoRef, {
+                  quantidadeEstoque: novoEstoque,
+                  updatedAt: new Date().toISOString(),
+                });
+              }
+            }
+          }
+        }
+      }
+      
+      // Excluir o lançamento
+      await deleteDoc(lancamentoRef);
       setDeleteConfirm(null);
     } catch (error) {
       console.error('Erro ao excluir lançamento:', error);
@@ -1006,6 +1036,15 @@ export default function SalonApp() {
       const descricoes = pdvCarrinho.map(i => `${i.qtd}x ${i.nome}`).join(', ');
       const clienteNome = pdvClienteSelecionado ? pdvClienteSelecionado.nome : 'CONSUMIDOR';
       
+      // Extrair produtos do carrinho para salvar no lançamento (para restaurar estoque se excluir)
+      const produtosVendidos = pdvCarrinho
+        .filter(item => item.type === 'produto' && item.id)
+        .map(item => ({
+          id: item.id,
+          nome: item.nome,
+          qtd: item.qtd
+        }));
+      
       // Se for pagamento fracionado, registrar cada forma separadamente
       if (pagamentosFracionados && pagamentosFracionados.length > 0) {
         for (const pag of pagamentosFracionados) {
@@ -1017,6 +1056,7 @@ export default function SalonApp() {
               valor: pag.valor,
               formaPagamento: pag.forma,
               observacoes: 'Venda fracionada realizada via PDV',
+              produtosVendidos, // Salvar produtos para restaurar estoque se excluir
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             };
@@ -1032,6 +1072,7 @@ export default function SalonApp() {
           valor: pdvTotal,
           formaPagamento: formaPagamento,
           observacoes: 'Venda realizada via PDV',
+          produtosVendidos, // Salvar produtos para restaurar estoque se excluir
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
