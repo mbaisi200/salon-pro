@@ -3638,13 +3638,13 @@ export default function SalonApp() {
       }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingItem ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
+            <DialogTitle>{editingItem ? 'Editar Agendamento' : '🆕 NOVO AGENDAMENTO (v2)'}</DialogTitle>
             <DialogDescription>Preencha os dados para criar um novo agendamento.</DialogDescription>
           </DialogHeader>
           
           {/* DEBUG INFO */}
-          <div className="bg-yellow-100 p-2 rounded text-xs mb-2">
-            <strong>DEBUG:</strong> Clientes: {clientes.length} | Serviços: {servicos.length} | Profissionais: {profissionais.length}
+          <div className="bg-yellow-200 border-4 border-red-500 p-4 rounded text-lg font-bold">
+            🔍 DEBUG: Clientes: {clientes.length} | Serviços: {servicos.length} | Profissionais: {profissionais.length}
           </div>
           
           <Form {...agendamentoForm}>
