@@ -14,8 +14,7 @@ import {
   LogOut, ChevronRight, Plus, Pencil, Trash2, Search, Eye, Check, XCircle,
   TrendingUp, TrendingDown, Building2, Clock, Phone, Mail, AlertTriangle,
   Sun, Moon, LayoutDashboard, UserCog, Briefcase, Wallet, ArrowUpRight, ArrowDownRight,
-  ChevronLeft, Bell, CreditCard, MapPin, Download, FileSpreadsheet, FileText, Filter,
-  Package, ShoppingCart, Percent, Star, History, Save, Printer, Trash
+  ChevronLeft, Bell, CreditCard, MapPin, Download, FileSpreadsheet, FileText, Filter
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 
@@ -101,19 +100,18 @@ const servicoSchema = z.object({
 const produtoSchema = z.object({
   nome: z.string().min(2, 'Nome é obrigatório'),
   descricao: z.string().optional(),
-  precoVenda: z.number().min(0, 'Preço de venda deve ser maior ou igual a zero'),
-  precoCusto: z.number().min(0, 'Preço de custo deve ser maior ou igual a zero').optional(),
-  quantidadeEstoque: z.number().min(0, 'Quantidade deve ser maior ou igual a zero'),
-  estoqueMinimo: z.number().min(0, 'Estoque mínimo deve ser maior ou igual a zero'),
+  precoVenda: z.number().min(0.01, 'Preço de venda deve ser maior que zero'),
+  precoCusto: z.number().min(0).optional(),
+  quantidadeEstoque: z.number().min(0).default(0),
+  estoqueMinimo: z.number().min(0).default(0),
 });
 
 const agendamentoSchema = z.object({
   data: z.string().min(1, 'Data é obrigatória'),
   hora: z.string().min(1, 'Hora é obrigatória'),
-  clienteNome: z.string().min(1, 'Selecione um cliente'),
-  clienteTelefone: z.string().optional(),
-  servico: z.string().min(1, 'Selecione um serviço'),
-  profissional: z.string().min(1, 'Selecione um profissional'),
+  clienteId: z.string().min(1, 'Selecione um cliente'),
+  servicoId: z.string().min(1, 'Selecione um serviço'),
+  profissionalId: z.string().min(1, 'Selecione um profissional'),
   status: z.enum(['Pendente', 'Confirmado', 'Concluido', 'Cancelado']),
   valor: z.number().optional(),
 });
@@ -191,7 +189,6 @@ export default function SalonApp() {
     servicos, setServicos, addServico, updateServico, deleteServico,
     agendamentos, setAgendamentos, addAgendamento, updateAgendamento, deleteAgendamento,
     financeiro, setFinanceiro, addFinanceiro, updateFinanceiro, deleteFinanceiro,
-    produtos, setProdutos, addProduto, updateProduto, deleteProduto,
   } = useSalonStore();
   
   // Local state
@@ -209,7 +206,6 @@ export default function SalonApp() {
   const [showServicoDialog, setShowServicoDialog] = useState(false);
   const [showAgendamentoDialog, setShowAgendamentoDialog] = useState(false);
   const [showFinanceiroDialog, setShowFinanceiroDialog] = useState(false);
-  const [showProdutoDialog, setShowProdutoDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: string; id: string } | null>(null);
   
@@ -221,12 +217,6 @@ export default function SalonApp() {
   
   // Busca de clientes
   const [buscaCliente, setBuscaCliente] = useState<string>('');
-  const [pdvBuscaCliente, setPdvBuscaCliente] = useState<string>('');
-  const [pdvClienteSelecionado, setPdvClienteSelecionado] = useState<any>(null);
-  const [pdvActiveTab, setPdvActiveTab] = useState<string>("servicos");
-  const [pdvCarrinho, setPdvCarrinho] = useState<any[]>([]);
-  const [showPdvPagamento, setShowPdvPagamento] = useState(false);
-  const [pdvFormaPagamento, setPdvFormaPagamento] = useState<string>("Dinheiro");
   
   // Histórico do cliente
   const [showClienteHistorico, setShowClienteHistorico] = useState(false);
@@ -275,34 +265,15 @@ export default function SalonApp() {
   const agendamentoForm = useForm<z.infer<typeof agendamentoSchema>>({
     resolver: zodResolver(agendamentoSchema),
     defaultValues: {
-      data: '', hora: '', clienteNome: '', clienteTelefone: '', servico: '', profissional: '', status: 'Pendente'
+      data: '', hora: '', clienteNome: '', clienteTelefone: '', servico: '', profissional: '', status: 'Pendente', valor: 0
     },
   });
-
+  
   const financeiroForm = useForm<z.infer<typeof financeiroSchema>>({
     resolver: zodResolver(financeiroSchema),
-    defaultValues: {
-      data: format(new Date(), 'yyyy-MM-dd'),
-      descricao: '',
-      tipo: 'entrada',
-      valor: 0,
-      formaPagamento: 'Dinheiro',
-      observacoes: ''
-    },
+    defaultValues: { data: format(new Date(), 'yyyy-MM-dd'), descricao: '', tipo: 'entrada', valor: 0, formaPagamento: '', observacoes: '' },
   });
-
-  const produtoForm = useForm<z.infer<typeof produtoSchema>>({
-    resolver: zodResolver(produtoSchema),
-    defaultValues: {
-      nome: '',
-      descricao: '',
-      precoVenda: 0,
-      precoCusto: 0,
-      quantidadeEstoque: 0,
-      estoqueMinimo: 0
-    },
-  });
-
+  
   // Dark mode effect
   useEffect(() => {
     if (darkMode) {
@@ -535,33 +506,6 @@ export default function SalonApp() {
     }
   }, [db, tenant, deleteConfirm]);
   
-
-  // =====================================
-  // FUNÇÕES CRUD - PRODUTOS
-  // =====================================
-  const loadProdutos = useCallback(async () => {
-    if (!tenant) return;
-    try {
-      const produtosRef = collection(db, 'saloes', tenant.id, 'produtos');
-      const snapshot = await getDocs(query(produtosRef, orderBy('nome')));
-      const produtosData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
-      setProdutos(produtosData);
-    } catch (error) {
-      console.error('Erro ao carregar produtos:', error);
-    }
-  }, [db, tenant, setProdutos]);
-
-  const handleDeleteProduto = useCallback(async () => {
-    if (!deleteConfirm || !tenant) return;
-    
-    try {
-      await deleteDoc(doc(db, 'saloes', tenant.id, 'produtos', deleteConfirm.id));
-      setDeleteConfirm(null);
-    } catch (error) {
-      console.error('Erro ao excluir produto:', error);
-    }
-  }, [db, tenant, deleteConfirm]);
-
   // =====================================
   // FUNÇÕES CRUD - PROFISSIONAIS
   // =====================================
@@ -807,88 +751,6 @@ export default function SalonApp() {
     }
   }, [db, tenant, deleteConfirm]);
   
-
-  const handleSaveProduto = useCallback(async (data: z.infer<typeof produtoSchema>) => {
-    if (!tenant) return;
-    
-    try {
-      const produtoData = {
-        ...data,
-        nome: toUpper(data.nome),
-        descricao: data.descricao || '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      
-      if (editingItem) {
-        await setDoc(doc(db, 'saloes', tenant.id, 'produtos', editingItem.id), produtoData, { merge: true });
-      } else {
-        await addDoc(collection(db, 'saloes', tenant.id, 'produtos'), produtoData);
-      }
-      
-      setShowProdutoDialog(false);
-      produtoForm.reset();
-      setEditingItem(null);
-    } catch (error) {
-      console.error('Erro ao salvar produto:', error);
-    }
-  }, [db, tenant, editingItem, produtoForm]);
-
-    const handleFinalizarVenda = useCallback(async (formaPagamento: string) => {
-    const pdvTotal = pdvCarrinho.reduce((acc, item) => {
-      const preco = item.type === "servico" ? parseFloat(item.preco) : parseFloat(item.precoVenda);
-      return acc + (preco * item.qtd);
-    }, 0);
-
-    if (!tenant || pdvCarrinho.length === 0) return;
-    
-    setLoading(true);
-    try {
-      const dataVenda = format(new Date(), 'yyyy-MM-dd');
-      const descricoes = pdvCarrinho.map(i => `${i.qtd}x ${i.nome}`).join(', ');
-      const clienteNome = pdvClienteSelecionado ? pdvClienteSelecionado.nome : 'CONSUMIDOR';
-      
-      // 1. Registrar no Financeiro
-      const financeiroData = {
-        data: dataVenda,
-        descricao: `VENDA PDV - ${clienteNome.toUpperCase()} (${descricoes.toUpperCase()})`,
-        tipo: 'entrada',
-        valor: pdvTotal,
-        formaPagamento: formaPagamento,
-        observacoes: 'Venda realizada via PDV',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      await addDoc(collection(db, 'saloes', tenant.id, 'financeiro'), financeiroData);
-      
-      // 2. Atualizar Estoque (apenas para produtos)
-      for (const item of pdvCarrinho) {
-        if (item.type === 'produto') {
-          const produtoRef = doc(db, 'saloes', tenant.id, 'produtos', item.id);
-          const novaQtd = Math.max(0, (item.quantidadeEstoque || 0) - item.qtd);
-          await updateDoc(produtoRef, {
-            quantidadeEstoque: novaQtd,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      }
-      
-      // 3. Limpar Carrinho e Seleção
-      setPdvCarrinho([]);
-      setPdvClienteSelecionado(null);
-      setShowPdvPagamento(false);
-      alert('Venda finalizada com sucesso!');
-      
-    } catch (error) {
-      console.error('Erro ao finalizar venda:', error);
-      alert('Erro ao finalizar venda. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
-  }, [db, tenant, pdvCarrinho, pdvClienteSelecionado, setLoading]);
-
-  
-
   // =====================================
   // FUNÇÃO ALTERAR SENHA
   // =====================================
@@ -1010,22 +872,7 @@ export default function SalonApp() {
       );
       unsubscribersRef.current.push(unsubClientes);
       
-
-      // Produtos
-      const produtosRef = collection(db, 'saloes', tenant.id, 'produtos');
-      const unsubProdutos = onSnapshot(
-        query(produtosRef, orderBy('nome')),
-        (snapshot) => {
-          const produtosData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
-          setProdutos(produtosData);
-        },
-        (error) => {
-          console.error('Erro ao escutar produtos:', error);
-        }
-      );
-      unsubscribersRef.current.push(unsubProdutos);
-
-            // Profissionais
+      // Profissionais
       const profissionaisRef = collection(db, 'saloes', tenant.id, 'profissionais');
       const unsubProfissionais = onSnapshot(
         query(profissionaisRef, orderBy('nome')),
@@ -1661,9 +1508,6 @@ export default function SalonApp() {
       { id: 'clientes', label: 'Clientes', icon: Users },
       { id: 'profissionais', label: 'Profissionais', icon: UserCheck },
       { id: 'servicos', label: 'Serviços', icon: Scissors },
-      { id: 'produtos', label: 'Estoque', icon: Package },
-      { id: 'pdv', label: 'Vendas (PDV)', icon: ShoppingCart },
-      { id: 'comissoes', label: 'Comissões', icon: Percent },
       { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     ];
     
@@ -2498,478 +2342,6 @@ export default function SalonApp() {
     );
   };
   
-
-  // =====================================
-  // RENDER ESTOQUE (PRODUTOS)
-  // =====================================
-  const renderProdutos = () => {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Controle de Estoque</h2>
-          <Button onClick={() => {
-            setEditingItem(null);
-            produtoForm.reset({ nome: '', descricao: '', precoVenda: 0, precoCusto: 0, quantidadeEstoque: 0, estoqueMinimo: 0 });
-            setShowProdutoDialog(true);
-          }}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Produto
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Package className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Itens</p>
-                <p className="text-2xl font-bold">{produtos.length}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Estoque Baixo</p>
-                <p className="text-2xl font-bold text-red-600">
-                  {produtos.filter(p => p.quantidadeEstoque <= p.estoqueMinimo).length}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <DollarSign className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Valor em Estoque</p>
-                <p className="text-2xl font-bold text-green-600">
-                  R$ {produtos.reduce((acc, p) => acc + (p.precoCusto * p.quantidadeEstoque), 0).toFixed(2)}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left p-4 font-medium">Produto</th>
-                    <th className="text-center p-4 font-medium">Qtd. Atual</th>
-                    <th className="text-center p-4 font-medium">Mínimo</th>
-                    <th className="text-right p-4 font-medium">Preço Custo</th>
-                    <th className="text-right p-4 font-medium">Preço Venda</th>
-                    <th className="text-right p-4 font-medium">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {produtos.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center p-8 text-muted-foreground">Nenhum produto cadastrado</td>
-                    </tr>
-                  ) : (
-                    produtos.map((p: any) => (
-                      <tr key={p.id} className="border-b hover:bg-muted/20">
-                        <td className="p-4">
-                          <div className="font-medium">{p.nome}</div>
-                          <div className="text-xs text-muted-foreground">{p.descricao}</div>
-                        </td>
-                        <td className="p-4 text-center">
-                          <Badge variant={p.quantidadeEstoque <= p.estoqueMinimo ? "destructive" : "secondary"}>
-                            {p.quantidadeEstoque}
-                          </Badge>
-                        </td>
-                        <td className="p-4 text-center text-muted-foreground">{p.estoqueMinimo}</td>
-                        <td className="p-4 text-right">R$ {parseFloat(p.precoCusto || 0).toFixed(2)}</td>
-                        <td className="p-4 text-right font-medium">R$ {parseFloat(p.precoVenda || 0).toFixed(2)}</td>
-                        <td className="p-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => {
-                              setEditingItem(p);
-                              produtoForm.reset(p);
-                              setShowProdutoDialog(true);
-                            }}>
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="text-red-500" onClick={() => setDeleteConfirm({ type: 'produtos', id: p.id })}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  };
-
-  // =====================================
-  // RENDER COMISSÕES
-  // =====================================
-  const renderComissoes = () => {
-    const comissoesData = profissionais.map(prof => {
-      const servicosProf = agendamentos.filter(a => a.profissionalId === prof.id && a.status === 'Concluido');
-      const totalGerado = servicosProf.reduce((acc, a) => acc + (a.valor || 0), 0);
-      const comissao = prof.tipoComissao === 'percentual' 
-        ? (totalGerado * (prof.percentualComissao || 0)) / 100 
-        : servicosProf.length * (prof.percentualComissao || 0);
-      
-      return {
-        ...prof,
-        totalGerado,
-        comissao,
-        qtdServicos: servicosProf.length
-      };
-    });
-
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Relatório de Comissões</h2>
-          <div className="flex gap-2">
-            <Button variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Exportar PDF
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-blue-600 text-white">
-            <CardContent className="p-6">
-              <p className="text-blue-100 text-sm">Total Gerado (Mês)</p>
-              <p className="text-3xl font-bold">R$ {comissoesData.reduce((acc, c) => acc + c.totalGerado, 0).toFixed(2)}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-orange-500 text-white">
-            <CardContent className="p-6">
-              <p className="text-orange-100 text-sm">Total Comissões</p>
-              <p className="text-3xl font-bold">R$ {comissoesData.reduce((acc, c) => acc + c.comissao, 0).toFixed(2)}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-green-600 text-white">
-            <CardContent className="p-6">
-              <p className="text-green-100 text-sm">Lucro Líquido (Serviços)</p>
-              <p className="text-3xl font-bold">R$ {(comissoesData.reduce((acc, c) => acc + c.totalGerado, 0) - comissoesData.reduce((acc, c) => acc + c.comissao, 0)).toFixed(2)}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Comissões por Profissional</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left p-4 font-medium">Profissional</th>
-                    <th className="text-center p-4 font-medium">Serviços</th>
-                    <th className="text-right p-4 font-medium">Total Gerado</th>
-                    <th className="text-center p-4 font-medium">Regra</th>
-                    <th className="text-right p-4 font-medium">Comissão</th>
-                    <th className="text-right p-4 font-medium">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {comissoesData.map((c: any) => (
-                    <tr key={c.id} className="border-b hover:bg-muted/20">
-                      <td className="p-4 font-medium">{c.nome}</td>
-                      <td className="p-4 text-center">{c.qtdServicos}</td>
-                      <td className="p-4 text-right">R$ {c.totalGerado.toFixed(2)}</td>
-                      <td className="p-4 text-center">
-                        <Badge variant="outline">
-                          {c.tipoComissao === 'percentual' ? `${c.percentualComissao}%` : `R$ ${c.percentualComissao} fixo`}
-                        </Badge>
-                      </td>
-                      <td className="p-4 text-right font-bold text-orange-600">R$ {c.comissao.toFixed(2)}</td>
-                      <td className="p-4 text-right">
-                        <Button variant="ghost" size="sm">Ver Detalhes</Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  };
-
-  const addToCart = (item: any, type: 'servico' | 'produto') => {
-    setPdvCarrinho(prev => {
-      const existing = prev.find(i => i.id === item.id && i.type === type);
-      if (existing) {
-        return prev.map(i => i.id === item.id && i.type === type ? { ...i, qtd: i.qtd + 1 } : i);
-      }
-      return [...prev, { ...item, type, qtd: 1 }];
-    });
-  };
-
-  const removeFromCart = (id: string, type: string) => {
-    setPdvCarrinho(prev => prev.filter(i => !(i.id === id && i.type === type)));
-  };
-
-  const updateCartQtd = (id: string, type: string, delta: number) => {
-    setPdvCarrinho(prev => prev.map(i => {
-      if (i.id === id && i.type === type) {
-        const newQtd = Math.max(1, i.qtd + delta);
-        return { ...i, qtd: newQtd };
-      }
-      return i;
-    }));
-  };
-
-  // =====================================
-  // RENDER PDV (PONTO DE VENDA)
-  // =====================================
-  const renderPDV = () => {
-    const pdvTotal = pdvCarrinho.reduce((acc, item) => {
-      const preco = item.type === "servico" ? parseFloat(item.preco) : parseFloat(item.precoVenda);
-      return acc + (preco * item.qtd);
-    }, 0);
-
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-12rem)]">
-        {/* Lado Esquerdo: Seleção de Itens */}
-        <div className="lg:col-span-2 space-y-6 flex flex-col">
-          <div className="flex gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input className="pl-10" placeholder="Buscar serviço ou produto..." />
-            </div>
-            <Tabs value={pdvActiveTab} onValueChange={setPdvActiveTab} className="w-auto">
-              <TabsList>
-                <TabsTrigger value="servicos">Serviços</TabsTrigger>
-                <TabsTrigger value="produtos">Produtos</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
-          <ScrollArea className="flex-1 border rounded-xl p-4 bg-white dark:bg-gray-900 shadow-inner">
-            <Tabs value={pdvActiveTab} className="w-full">
-              <TabsContent value="servicos" className="mt-0">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {servicos.map(s => (
-                    <button 
-                      key={s.id}
-                      className="p-4 rounded-xl border-2 border-transparent hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-left group relative overflow-hidden"
-                      onClick={() => addToCart(s, "servico")}
-                    >
-                      <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Plus className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <Scissors className="w-6 h-6 text-blue-600 mb-2" />
-                      <div className="font-bold truncate">{s.nome}</div>
-                      <div className="text-blue-600 font-bold">R$ {parseFloat(s.preco).toFixed(2)}</div>
-                    </button>
-                  ))}
-                  {servicos.length === 0 && (
-                    <div className="col-span-full text-center py-8 text-muted-foreground">Nenhum serviço cadastrado</div>
-                  )}
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="produtos" className="mt-0">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {produtos.map(p => (
-                    <button 
-                      key={p.id}
-                      className="p-4 rounded-xl border-2 border-transparent hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all text-left group relative overflow-hidden"
-                      onClick={() => addToCart(s, "servico")}
-                    >
-                      <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Plus className="w-4 h-4 text-green-600" />
-                      </div>
-                      <Package className="w-6 h-6 text-green-600 mb-2" />
-                      <div className="font-bold truncate">{p.nome}</div>
-                      <div className="text-green-600 font-bold">R$ {parseFloat(p.precoVenda).toFixed(2)}</div>
-                    </button>
-                  ))}
-                  {produtos.length === 0 && (
-                    <div className="col-span-full text-center py-8 text-muted-foreground">Nenhum produto cadastrado</div>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </ScrollArea>
-        </div>
-
-        {/* Lado Direito: Carrinho e Pagamento */}
-        <Card className="flex flex-col shadow-xl border-2 border-blue-100 dark:border-blue-900/30">
-          <CardHeader className="bg-blue-600 text-white rounded-t-lg py-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ShoppingCart className="w-5 h-5" />
-              Venda Atual
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 p-4 flex flex-col gap-4 overflow-hidden">
-            <div className="space-y-2">
-              <Label>Cliente</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className={cn(
-                      "w-full justify-between font-normal",
-                      !pdvClienteSelecionado && "text-muted-foreground"
-                    )}
-                  >
-                    {pdvClienteSelecionado 
-                      ? pdvClienteSelecionado.nome 
-                      : "Buscar cliente por nome ou tel..."}
-                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-0" align="start">
-                  <Command>
-                    <CommandInput 
-                      placeholder="Digite o nome ou telefone..." 
-                      onValueChange={setPdvBuscaCliente}
-                    />
-                    <CommandList>
-                      <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        {clientes
-                          .filter(c => 
-                            c.nome.toLowerCase().includes(pdvBuscaCliente.toLowerCase()) || 
-                            (c.telefone && c.telefone.includes(pdvBuscaCliente))
-                          )
-                          .slice(0, 10)
-                          .map((c) => (
-                            <CommandItem
-                              key={c.id}
-                              value={c.nome}
-                              onSelect={() => {
-                                setPdvClienteSelecionado(c);
-                                setPdvBuscaCliente("");
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  pdvClienteSelecionado?.id === c.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              <div className="flex flex-col">
-                                <span>{c.nome}</span>
-                                <span className="text-xs text-muted-foreground">{c.telefone || "Sem telefone"}</span>
-                              </div>
-                            </CommandItem>
-                          ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              {pdvClienteSelecionado && (
-                <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-900/30">
-                  <div className="text-xs">
-                    <span className="font-bold text-blue-700 dark:text-blue-400">Selecionado:</span> {pdvClienteSelecionado.nome}
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6 text-blue-700"
-                    onClick={() => { setPdvClienteSelecionado(null); setPdvCarrinho([]); }}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
-            <ScrollArea className="flex-1 -mx-2 px-2">
-              <div className="space-y-3">
-                {pdvCarrinho.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground italic">
-                    Carrinho vazio
-                  </div>
-                ) : (
-                  pdvCarrinho.map((item, index) => (
-                    <div key={`${item.id}-${item.type}`} className="flex items-center justify-between bg-muted/30 p-2 rounded-lg group">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{item.nome}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.type === 'servico' ? 'Serviço' : 'Produto'} • R$ {(item.type === 'servico' ? parseFloat(item.preco) : parseFloat(item.precoVenda)).toFixed(2)}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center border rounded-md bg-white dark:bg-gray-800">
-                          <button 
-                            className="px-2 py-1 hover:bg-muted"
-                            onClick={() => updateCartQtd(item.id, item.type, -1)}
-                          >-</button>
-                          <span className="px-2 text-xs font-bold">{item.qtd}</span>
-                          <button 
-                            className="px-2 py-1 hover:bg-muted"
-                            onClick={() => updateCartQtd(item.id, item.type, 1)}
-                          >+</button>
-                        </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => removeFromCart(item.id, item.type)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-
-            <div className="space-y-4 pt-4 border-t">
-              <div className="flex justify-between text-lg font-bold">
-                <span>Total</span>
-                <span className="text-blue-600">R$ {pdvTotal.toFixed(2)}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  variant="outline" 
-                  className="h-12"
-                  onClick={() => { setPdvCarrinho([]); setPdvClienteSelecionado(null); }}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Limpar
-                </Button>
-                <Button 
-                  className="h-12 bg-green-600 hover:bg-green-700 text-white"
-                  disabled={pdvCarrinho.length === 0}
-                  onClick={() => setShowPdvPagamento(true)}
-                >
-                  <Check className="w-4 h-4 mr-2" />
-                  Finalizar
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  };
-
   // =====================================
   // RENDER CONTEÚDO PRINCIPAL
   // =====================================
@@ -2994,12 +2366,6 @@ export default function SalonApp() {
         return renderProfissionais();
       case 'servicos':
         return renderServicos();
-      case 'produtos':
-        return renderProdutos();
-      case 'pdv':
-        return renderPDV();
-      case 'comissoes':
-        return renderComissoes();
       case 'financeiro':
         return renderFinanceiro();
       default:
@@ -3045,9 +2411,6 @@ export default function SalonApp() {
               currentView === 'clientes' ? 'Clientes' :
               currentView === 'profissionais' ? 'Profissionais' :
               currentView === 'servicos' ? 'Serviços' :
-              currentView === 'produtos' ? 'Estoque' :
-              currentView === 'pdv' ? 'Vendas (PDV)' :
-              currentView === 'comissoes' ? 'Comissões' :
               currentView === 'financeiro' ? 'Financeiro' : 'Agenda'
             )}
           </h1>
@@ -3117,7 +2480,7 @@ export default function SalonApp() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Plano</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione" />
@@ -3155,7 +2518,7 @@ export default function SalonApp() {
         </DialogContent>
       </Dialog>
       
-            {/* Cliente Dialog */}
+      {/* Cliente Dialog */}
       <Dialog open={showClienteDialog} onOpenChange={setShowClienteDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -3163,35 +2526,19 @@ export default function SalonApp() {
           </DialogHeader>
           <Form {...clienteForm}>
             <form onSubmit={clienteForm.handleSubmit(handleSaveCliente)} className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={clienteForm.control}
-                  name="nome"
-                  render={({ field }) => (
-                    <FormItem className="col-span-2">
-                      <FormLabel>Nome</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nome do cliente" {...field} onChange={e => field.onChange(toUpper(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={clienteForm.control}
-                  name="pontosFidelidade"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Pontos Fidelidade</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
+              <FormField
+                control={clienteForm.control}
+                name="nome"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nome do cliente" {...field} onChange={e => field.onChange(toUpper(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="grid grid-cols-3 gap-4">
                 <FormField
                   control={clienteForm.control}
@@ -3220,7 +2567,6 @@ export default function SalonApp() {
                   )}
                 />
               </div>
-
               <div className="grid grid-cols-4 gap-4">
                 <FormField
                   control={clienteForm.control}
@@ -3249,7 +2595,6 @@ export default function SalonApp() {
                   )}
                 />
               </div>
-
               <div className="grid grid-cols-4 gap-4">
                 <FormField
                   control={clienteForm.control}
@@ -3268,7 +2613,7 @@ export default function SalonApp() {
                   control={clienteForm.control}
                   name="cidade"
                   render={({ field }) => (
-                    <FormItem className="col-span-2">
+                    <FormItem>
                       <FormLabel>Cidade</FormLabel>
                       <FormControl>
                         <Input placeholder="Cidade" {...field} onChange={e => field.onChange(toUpper(e.target.value))} />
@@ -3290,9 +2635,6 @@ export default function SalonApp() {
                     </FormItem>
                   )}
                 />
-              </div>
-
-              <div className="grid grid-cols-4 gap-4">
                 <FormField
                   control={clienteForm.control}
                   name="cep"
@@ -3307,7 +2649,6 @@ export default function SalonApp() {
                   )}
                 />
               </div>
-
               <FormField
                 control={clienteForm.control}
                 name="observacoes"
@@ -3319,7 +2660,6 @@ export default function SalonApp() {
                         placeholder="Informações adicionais sobre o cliente, preferências, histórico de serviços..." 
                         className="min-h-[80px]"
                         {...field} 
-                        onChange={e => field.onChange(toUpper(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
@@ -3478,63 +2818,27 @@ export default function SalonApp() {
                   )}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={profissionalForm.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="ativo">Ativo</SelectItem>
-                          <SelectItem value="inativo">Inativo</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={profissionalForm.control}
-                  name="tipoComissao"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo Comissão</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="percentual">Percentual (%)</SelectItem>
-                          <SelectItem value="fixo_por_servico">Fixo por Serviço (R$)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={profissionalForm.control}
-                  name="percentualComissao"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Valor/Perc. Comissão</FormLabel>
+              <FormField
+                control={profissionalForm.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                      <SelectContent>
+                        <SelectItem value="ativo">Ativo</SelectItem>
+                        <SelectItem value="inativo">Inativo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <DialogFooter>
                 <Button type="submit">Salvar</Button>
               </DialogFooter>
@@ -3646,7 +2950,7 @@ export default function SalonApp() {
                       if (cliente) {
                         agendamentoForm.setValue('clienteTelefone', cliente.telefone || '');
                       }
-                    }} value={field.value}>
+                    }} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o cliente" />
@@ -3681,7 +2985,7 @@ export default function SalonApp() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Serviço</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o serviço" />
@@ -3703,7 +3007,7 @@ export default function SalonApp() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Profissional</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o profissional" />
@@ -3725,7 +3029,7 @@ export default function SalonApp() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
@@ -3815,7 +3119,7 @@ export default function SalonApp() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipo</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione" />
@@ -3837,7 +3141,7 @@ export default function SalonApp() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Forma de Pagamento</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione" />
@@ -3881,106 +3185,7 @@ export default function SalonApp() {
         </DialogContent>
       </Dialog>
       
-
-      {/* Produto Dialog */}
-      <Dialog open={showProdutoDialog} onOpenChange={setShowProdutoDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingItem ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
-          </DialogHeader>
-          <Form {...produtoForm}>
-            <form onSubmit={produtoForm.handleSubmit(handleSaveProduto)} className="space-y-4">
-              <FormField
-                control={produtoForm.control}
-                name="nome"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome do Produto</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ex: Shampoo Pós-Química" {...field} onChange={e => field.onChange(toUpper(e.target.value))} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={produtoForm.control}
-                name="descricao"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Breve descrição" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={produtoForm.control}
-                  name="precoCusto"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preço de Custo</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={produtoForm.control}
-                  name="precoVenda"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preço de Venda</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={produtoForm.control}
-                  name="quantidadeEstoque"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Qtd. em Estoque</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={produtoForm.control}
-                  name="estoqueMinimo"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Estoque Mínimo</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <DialogFooter>
-                <Button type="submit">Salvar Produto</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-            {/* Modal Histórico do Cliente */}
+      {/* Modal Histórico do Cliente */}
       <Dialog open={showClienteHistorico} onOpenChange={setShowClienteHistorico}>
         <DialogContent className="max-w-4xl w-[90vw]">
           <DialogHeader className="pb-2">
@@ -4227,71 +3432,6 @@ export default function SalonApp() {
         </DialogContent>
       </Dialog>
       
-      {/* PDV Pagamento Dialog */}
-      <Dialog open={showPdvPagamento} onOpenChange={setShowPdvPagamento}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-green-600" />
-              Finalizar Pagamento
-            </DialogTitle>
-            <DialogDescription>
-              Selecione a forma de pagamento para concluir a venda.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4 space-y-6">
-            <div className="text-center p-4 bg-muted/50 rounded-xl border-2 border-dashed border-muted">
-              <p className="text-sm text-muted-foreground mb-1">Total a Pagar</p>
-              <p className="text-4xl font-black text-blue-600">
-                R$ {pdvCarrinho.reduce((acc, item) => {
-                  const preco = item.type === "servico" ? parseFloat(item.preco) : parseFloat(item.precoVenda);
-                  return acc + (preco * item.qtd);
-                }, 0).toFixed(2)}
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <Label>Forma de Pagamento</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: 'Dinheiro', icon: DollarSign, color: 'text-green-600' },
-                  { id: 'PIX', icon: ArrowUpRight, color: 'text-teal-600' },
-                  { id: 'Cartão de Crédito', icon: CreditCard, color: 'text-blue-600' },
-                  { id: 'Cartão de Débito', icon: CreditCard, color: 'text-purple-600' }
-                ].map((forma) => (
-                  <Button
-                    key={forma.id}
-                    variant={pdvFormaPagamento === forma.id ? "default" : "outline"}
-                    className={cn(
-                      "h-16 flex flex-col gap-1 items-center justify-center transition-all",
-                      pdvFormaPagamento === forma.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
-                    )}
-                    onClick={() => setPdvFormaPagamento(forma.id)}
-                  >
-                    <forma.icon className={cn("w-5 h-5", pdvFormaPagamento === forma.id ? "text-white" : forma.color)} />
-                    <span className="text-[10px] font-bold uppercase">{forma.id}</span>
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPdvPagamento(false)} disabled={loading}>
-              Cancelar
-            </Button>
-            <Button 
-              className="bg-green-600 hover:bg-green-700 text-white" 
-              onClick={() => handleFinalizarVenda(pdvFormaPagamento)}
-              disabled={loading}
-            >
-              {loading ? "Processando..." : "Confirmar e Finalizar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
