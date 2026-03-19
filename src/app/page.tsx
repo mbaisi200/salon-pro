@@ -11,16 +11,22 @@ import {
 } from 'firebase/firestore';
 import {
   BarChart3, Calendar, Users, Scissors, UserCheck, DollarSign, Settings, Menu, X,
-  LogOut, ChevronRight, Plus, Pencil, Trash2, Search, Eye, Check, XCircle,
+  LogOut, ChevronRight, Plus, Pencil, Trash2, Search, Eye, Check, XCircle, CheckCircle,
   TrendingUp, TrendingDown, Building2, Clock, Phone, Mail, AlertTriangle,
   Sun, Moon, LayoutDashboard, UserCog, Briefcase, Wallet, ArrowUpRight, ArrowDownRight,
   ChevronLeft, Bell, CreditCard, MapPin, Download, FileSpreadsheet, FileText, Filter,
-  Package, ShoppingCart, Percent, Star, History, Save, Printer, Trash
+  Package, ShoppingCart, Percent, Star, History, Save, Printer, Trash, Database,
+  Gift, MessageCircle, Sparkles, Target, Award, Activity
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 
 import { getFirebaseDb } from '@/lib/firebase';
 import { useSalonStore } from '@/lib/store';
+
+// Import novos componentes
+import BIDashboard from '@/components/salon/BIDashboard';
+import SeedDataPanel from '@/components/salon/SeedDataPanel';
+import FidelidadePanel from '@/components/salon/FidelidadePanel';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1923,6 +1929,8 @@ export default function SalonApp() {
     const menuItems = isMaster ? [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'saloes', label: 'Salões', icon: Building2 },
+      { id: 'bi', label: 'Business Intel.', icon: BarChart3 },
+      { id: 'seed', label: 'Popular Dados', icon: Database },
     ] : [
       { id: 'agenda', label: 'Agenda', icon: Calendar },
       { id: 'clientes', label: 'Clientes', icon: Users },
@@ -1933,6 +1941,8 @@ export default function SalonApp() {
       { id: 'caixa', label: 'Caixa', icon: Wallet },
       { id: 'comissoes', label: 'Comissões', icon: Percent },
       { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
+      { id: 'fidelidade', label: 'Fidelidade', icon: Gift },
+      { id: 'bi', label: 'Business Intel.', icon: BarChart3 },
     ];
     
     return (
@@ -4085,6 +4095,215 @@ export default function SalonApp() {
   };
 
   // =====================================
+  // RENDER BI MASTER
+  // =====================================
+  const renderBIMaster = () => {
+    // Calcular métricas agregadas de todos os salões
+    const totalFaturamento = saloes.reduce((acc: number, salao: any) => {
+      // Buscar financeiro de cada salão seria necessário, mas como é demo, usamos valores simulados
+      return acc + (salao.faturamentoEstimado || 0);
+    }, 0);
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <BarChart3 className="w-6 h-6 text-blue-600" />
+              Business Intelligence - Visão Geral
+            </h2>
+            <p className="text-muted-foreground">
+              Análises consolidadas de todos os salões
+            </p>
+          </div>
+        </div>
+
+        {/* KPIs Gerais */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+            <CardContent className="p-4">
+              <Building2 className="w-8 h-8 text-blue-600 mb-2" />
+              <p className="text-3xl font-bold text-blue-700 dark:text-blue-400">{saloes.length}</p>
+              <p className="text-sm text-muted-foreground">Salões Ativos</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+            <CardContent className="p-4">
+              <TrendingUp className="w-8 h-8 text-green-600 mb-2" />
+              <p className="text-3xl font-bold text-green-700 dark:text-green-400">
+                {saloes.filter((s: any) => s.ativo).length}
+              </p>
+              <p className="text-sm text-muted-foreground">Salões Ativos</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
+            <CardContent className="p-4">
+              <AlertTriangle className="w-8 h-8 text-orange-600 mb-2" />
+              <p className="text-3xl font-bold text-orange-700 dark:text-orange-400">
+                {saloes.filter((s: any) => {
+                  if (!s.dataExpiracao) return false;
+                  const dias = Math.ceil((new Date(s.dataExpiracao).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  return dias <= 7 && dias > 0;
+                }).length}
+              </p>
+              <p className="text-sm text-muted-foreground">Vencendo em 7 dias</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
+            <CardContent className="p-4">
+              <Target className="w-8 h-8 text-purple-600 mb-2" />
+              <p className="text-3xl font-bold text-purple-700 dark:text-purple-400">
+                {saloes.filter((s: any) => s.plano === 'premium').length}
+              </p>
+              <p className="text-sm text-muted-foreground">Planos Premium</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Distribuição por Plano */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Distribuição por Plano</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {['basico', 'profissional', 'premium'].map(plano => {
+                  const count = saloes.filter((s: any) => (s.plano || 'basico') === plano).length;
+                  const pct = saloes.length > 0 ? (count / saloes.length) * 100 : 0;
+                  return (
+                    <div key={plano} className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="capitalize font-medium">{plano}</span>
+                        <span>{count} salões ({pct.toFixed(1)}%)</span>
+                      </div>
+                      <Progress value={pct} className="h-2" />
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Status das Assinaturas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <span>Ativos</span>
+                  </div>
+                  <span className="font-bold text-green-600">{saloes.filter((s: any) => s.ativo).length}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                    <span>Vencendo (7 dias)</span>
+                  </div>
+                  <span className="font-bold text-yellow-600">
+                    {saloes.filter((s: any) => {
+                      if (!s.dataExpiracao) return false;
+                      const dias = Math.ceil((new Date(s.dataExpiracao).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                      return dias <= 7 && dias > 0;
+                    }).length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <XCircle className="w-5 h-5 text-red-600" />
+                    <span>Inativos/Expirados</span>
+                  </div>
+                  <span className="font-bold text-red-600">{saloes.filter((s: any) => !s.ativo).length}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Info */}
+        <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-5 h-5 text-blue-600 mt-0.5" />
+              <div>
+                <p className="font-medium text-blue-700 dark:text-blue-400">Análise Detalhada por Salão</p>
+                <p className="text-sm text-blue-600 dark:text-blue-300">
+                  Para visualizar análises detalhadas de um salão específico, acesse o salão e navegue até o BI interno.
+                  Lá você encontrará gráficos de faturamento, desempenho de profissionais, serviços mais vendidos e muito mais.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  // =====================================
+  // RENDER SEED PANEL
+  // =====================================
+  const renderSeedPanel = () => {
+    return (
+      <SeedDataPanel
+        db={db}
+        saloes={saloes}
+        onRefresh={loadSaloes}
+      />
+    );
+  };
+
+  // =====================================
+  // RENDER FIDELIDADE
+  // =====================================
+  const renderFidelidade = () => {
+    return (
+      <FidelidadePanel
+        clientes={clientes}
+        agendamentos={agendamentos}
+        financeiro={financeiro}
+        onUpdateCliente={async (id, data) => {
+          if (!tenant) return;
+          try {
+            await setDoc(doc(db, 'saloes', tenant.id, 'clientes', id), data, { merge: true });
+          } catch (error) {
+            console.error('Erro ao atualizar cliente:', error);
+          }
+        }}
+        onAddLancamento={async (data) => {
+          if (!tenant) return;
+          try {
+            await addDoc(collection(db, 'saloes', tenant.id, 'financeiro'), data);
+          } catch (error) {
+            console.error('Erro ao adicionar lançamento:', error);
+          }
+        }}
+        tenantId={tenant?.id || ''}
+      />
+    );
+  };
+
+  // =====================================
+  // RENDER BI TENANT
+  // =====================================
+  const renderBITenant = () => {
+    return (
+      <BIDashboard
+        agendamentos={agendamentos}
+        clientes={clientes}
+        profissionais={profissionais}
+        servicos={servicos}
+        financeiro={financeiro}
+      />
+    );
+  };
+
+  // =====================================
   // RENDER CONTEÚDO PRINCIPAL
   // =====================================
   const renderContent = () => {
@@ -4094,6 +4313,10 @@ export default function SalonApp() {
           return renderMasterDashboard();
         case 'saloes':
           return renderSaloes();
+        case 'bi':
+          return renderBIMaster();
+        case 'seed':
+          return renderSeedPanel();
         default:
           return renderMasterDashboard();
       }
@@ -4118,6 +4341,10 @@ export default function SalonApp() {
         return renderComissoes();
       case 'financeiro':
         return renderFinanceiro();
+      case 'fidelidade':
+        return renderFidelidade();
+      case 'bi':
+        return renderBITenant();
       default:
         return renderAgenda();
     }
@@ -4155,7 +4382,10 @@ export default function SalonApp() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold">
             {isMaster ? (
-              currentView === 'dashboard' ? 'Dashboard' : 'Salões'
+              currentView === 'dashboard' ? 'Dashboard' :
+              currentView === 'saloes' ? 'Salões' :
+              currentView === 'bi' ? 'Business Intelligence' :
+              currentView === 'seed' ? 'Popular Base de Dados' : 'Dashboard'
             ) : (
               currentView === 'agenda' ? 'Agenda' :
               currentView === 'clientes' ? 'Clientes' :
@@ -4165,7 +4395,9 @@ export default function SalonApp() {
               currentView === 'pdv' ? 'Vendas (PDV)' :
               currentView === 'caixa' ? 'Caixa' :
               currentView === 'comissoes' ? 'Comissões' :
-              currentView === 'financeiro' ? 'Financeiro' : 'Agenda'
+              currentView === 'financeiro' ? 'Financeiro' :
+              currentView === 'fidelidade' ? 'Programa de Fidelidade' :
+              currentView === 'bi' ? 'Business Intelligence' : 'Agenda'
             )}
           </h1>
           {!isMaster && tenant && (
