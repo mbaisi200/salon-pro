@@ -5,7 +5,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Gift, Star, Award, Sparkles, TrendingUp, Users, Crown,
-  Check, X, Plus, Trash2, Edit, History, ChevronRight
+  Check, X, Plus, Trash2, Edit, History, ChevronRight,
+  Heart, Zap, Target, Diamond, Medal, Trophy
 } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +18,6 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 // =====================================
@@ -33,22 +33,68 @@ interface FidelidadePanelProps {
 }
 
 // =====================================
-// CONSTANTES
+// NÍVEIS DE FIDELIDADE - Visual e Atrativo
 // =====================================
 const NIVEIS_FIDELIDADE = [
-  { nivel: 'Bronze', pontosMin: 0, cor: '#CD7F32', icone: '🥉', desconto: 0 },
-  { nivel: 'Prata', pontosMin: 100, cor: '#C0C0C0', icone: '🥈', desconto: 5 },
-  { nivel: 'Ouro', pontosMin: 300, cor: '#FFD700', icone: '🥇', desconto: 10 },
-  { nivel: 'Diamante', pontosMin: 600, cor: '#B9F2FF', icone: '💎', desconto: 15 },
-  { nivel: 'VIP', pontosMin: 1000, cor: '#9B59B6', icone: '👑', desconto: 20 },
+  { 
+    nivel: 'Bronze', 
+    pontosMin: 0, 
+    cor: '#CD7F32', 
+    corBg: 'from-amber-600 to-amber-800',
+    icone: Medal, 
+    iconeEmoji: '🥉', 
+    desconto: 0,
+    beneficios: ['Acúmulo de pontos', 'Newsletter exclusivo']
+  },
+  { 
+    nivel: 'Prata', 
+    pontosMin: 100, 
+    cor: '#C0C0C0', 
+    corBg: 'from-gray-400 to-gray-600',
+    icone: Award, 
+    iconeEmoji: '🥈', 
+    desconto: 5,
+    beneficios: ['5% de desconto', 'Prioridade no agendamento']
+  },
+  { 
+    nivel: 'Ouro', 
+    pontosMin: 300, 
+    cor: '#FFD700', 
+    corBg: 'from-yellow-400 to-yellow-600',
+    icone: Crown, 
+    iconeEmoji: '🥇', 
+    desconto: 10,
+    beneficios: ['10% de desconto', 'Brinde no aniversário', 'Acesso antecipado a promoções']
+  },
+  { 
+    nivel: 'Diamante', 
+    pontosMin: 600, 
+    cor: '#B9F2FF', 
+    corBg: 'from-cyan-400 to-blue-600',
+    icone: Diamond, 
+    iconeEmoji: '💎', 
+    desconto: 15,
+    beneficios: ['15% de desconto', 'Serviço grátis/mês', 'Atendimento VIP']
+  },
+  { 
+    nivel: 'VIP Elite', 
+    pontosMin: 1000, 
+    cor: '#9B59B6', 
+    corBg: 'from-purple-500 to-pink-600',
+    icone: Trophy, 
+    iconeEmoji: '👑', 
+    desconto: 20,
+    beneficios: ['20% de desconto', 'Serviços exclusivos', 'Consulta gratuita', 'Presentes mensais']
+  },
 ];
 
 const RECOMPENSAS = [
-  { id: 'desconto10', nome: 'Desconto de R$10', pontos: 50, tipo: 'desconto', valor: 10 },
-  { id: 'desconto25', nome: 'Desconto de R$25', pontos: 100, tipo: 'desconto', valor: 25 },
-  { id: 'desconto50', nome: 'Desconto de R$50', pontos: 180, tipo: 'desconto', valor: 50 },
-  { id: 'servico_gratis', nome: 'Serviço Grátis (até R$80)', pontos: 300, tipo: 'servico', valor: 80 },
-  { id: 'pacote_especial', nome: 'Pacote Especial', pontos: 500, tipo: 'pacote', valor: 150 },
+  { id: 'desconto10', nome: 'Desconto de R$10', descricao: 'Válido para qualquer serviço', pontos: 50, tipo: 'desconto', valor: 10, icone: '💰' },
+  { id: 'desconto25', nome: 'Desconto de R$25', descricao: 'Válido para serviços acima de R$50', pontos: 100, tipo: 'desconto', valor: 25, icone: '🎁' },
+  { id: 'desconto50', nome: 'Desconto de R$50', descricao: 'Válido para serviços acima de R$100', pontos: 180, tipo: 'desconto', valor: 50, icone: '🎉' },
+  { id: 'servico_gratis', nome: 'Serviço Grátis', descricao: 'Até R$80 em qualquer serviço', pontos: 300, tipo: 'servico', valor: 80, icone: '✨' },
+  { id: 'pacote_especial', nome: 'Pacote Premium', descricao: 'Day spa completo', pontos: 500, tipo: 'pacote', valor: 150, icone: '🌟' },
+  { id: 'mes_gratis', nome: 'Mês VIP', descricao: '10 serviços grátis no mês', pontos: 1000, tipo: 'vip', valor: 500, icone: '👑' },
 ];
 
 // =====================================
@@ -78,10 +124,10 @@ export default function FidelidadePanel({
     const mediaPontos = clientes.length > 0 ? totalPontosDistribuidos / clientes.length : 0;
 
     // Distribuição por nível
-    const distribuicaoNiveis = NIVEIS_FIDELIDADE.map(nivel => {
+    const distribuicaoNiveis = NIVEIS_FIDELIDADE.map((nivel, index) => {
+      const proximoNivel = NIVEIS_FIDELIDADE[index + 1];
       const count = clientes.filter(c => {
         const pontos = c.pontosFidelidade || 0;
-        const proximoNivel = NIVEIS_FIDELIDADE.find(n => n.pontosMin > nivel.pontosMin);
         return pontos >= nivel.pontosMin && (!proximoNivel || pontos < proximoNivel.pontosMin);
       }).length;
       return { ...nivel, count };
@@ -92,14 +138,22 @@ export default function FidelidadePanel({
       .sort((a, b) => (b.pontosFidelidade || 0) - (a.pontosFidelidade || 0))
       .slice(0, 10);
 
+    // Pontos ganhos no mês
+    const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const pontosMes = agendamentos
+      .filter(a => new Date(a.data) >= inicioMes && a.status === 'Concluido')
+      .reduce((acc, a) => acc + Math.floor(a.valor || 0), 0);
+
     return {
       clientesComPontos: clientesComPontos.length,
+      totalClientes: clientes.length,
       totalPontosDistribuidos,
       mediaPontos,
       distribuicaoNiveis,
-      topClientes
+      topClientes,
+      pontosMes
     };
-  }, [clientes]);
+  }, [clientes, agendamentos]);
 
   // =====================================
   // FUNÇÕES
@@ -185,52 +239,78 @@ export default function FidelidadePanel({
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Gift className="w-6 h-6 text-purple-600" />
+            <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 text-white">
+              <Gift className="w-6 h-6" />
+            </div>
             Programa de Fidelidade
           </h2>
-          <p className="text-muted-foreground">
-            Gerencie pontos e recompensas para seus clientes
+          <p className="text-muted-foreground mt-1">
+            Recompense seus clientes e aumente a fidelização
           </p>
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs Visuais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
-          <CardContent className="p-4">
-            <Users className="w-6 h-6 text-purple-600 mb-2" />
-            <p className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+        <Card className="relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent" />
+          <CardContent className="p-4 relative">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                <Users className="w-5 h-5 text-purple-600" />
+              </div>
+              <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                {estatisticas.totalClientes > 0 ? ((estatisticas.clientesComPontos / estatisticas.totalClientes) * 100).toFixed(0) : 0}% ativos
+              </Badge>
+            </div>
+            <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
               {estatisticas.clientesComPontos}
             </p>
             <p className="text-sm text-muted-foreground">Clientes com Pontos</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border-yellow-200 dark:border-yellow-800">
-          <CardContent className="p-4">
-            <Star className="w-6 h-6 text-yellow-600 mb-2" />
-            <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
+        <Card className="relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/10 via-yellow-500/5 to-transparent" />
+          <CardContent className="p-4 relative">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                <Star className="w-5 h-5 text-yellow-600" />
+              </div>
+              <Sparkles className="w-4 h-4 text-yellow-500 animate-pulse" />
+            </div>
+            <p className="text-3xl font-bold text-yellow-600">
               {estatisticas.totalPontosDistribuidos.toLocaleString()}
             </p>
             <p className="text-sm text-muted-foreground">Total de Pontos</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
-          <CardContent className="p-4">
-            <TrendingUp className="w-6 h-6 text-green-600 mb-2" />
-            <p className="text-2xl font-bold text-green-700 dark:text-green-400">
-              {estatisticas.mediaPontos.toFixed(1)}
+        <Card className="relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 via-green-500/5 to-transparent" />
+          <CardContent className="p-4 relative">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
+                <TrendingUp className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+            <p className="text-3xl font-bold text-green-600">
+              {estatisticas.pontosMes.toLocaleString()}
             </p>
-            <p className="text-sm text-muted-foreground">Média por Cliente</p>
+            <p className="text-sm text-muted-foreground">Pontos este Mês</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
-          <CardContent className="p-4">
-            <Crown className="w-6 h-6 text-blue-600 mb-2" />
-            <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-              {estatisticas.distribuicaoNiveis.filter(n => n.nivel === 'VIP' || n.nivel === 'Diamante').reduce((acc, n) => acc + n.count, 0)}
+        <Card className="relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-cyan-500/5 to-transparent" />
+          <CardContent className="p-4 relative">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 rounded-lg bg-cyan-100 dark:bg-cyan-900/30">
+                <Crown className="w-5 h-5 text-cyan-600" />
+              </div>
+            </div>
+            <p className="text-3xl font-bold text-cyan-600">
+              {estatisticas.distribuicaoNiveis.filter(n => n.nivel === 'VIP Elite' || n.nivel === 'Diamante').reduce((acc, n) => acc + n.count, 0)}
             </p>
             <p className="text-sm text-muted-foreground">Clientes VIP/Diamante</p>
           </CardContent>
@@ -239,70 +319,115 @@ export default function FidelidadePanel({
 
       {/* Tabs */}
       <Tabs defaultValue="clientes" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="clientes">Clientes</TabsTrigger>
-          <TabsTrigger value="niveis">Níveis</TabsTrigger>
-          <TabsTrigger value="recompensas">Recompensas</TabsTrigger>
-          <TabsTrigger value="config">Configurações</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 h-auto">
+          <TabsTrigger value="clientes" className="flex items-center gap-2 py-2">
+            <Users className="w-4 h-4" />
+            <span className="hidden sm:inline">Clientes</span>
+          </TabsTrigger>
+          <TabsTrigger value="niveis" className="flex items-center gap-2 py-2">
+            <Award className="w-4 h-4" />
+            <span className="hidden sm:inline">Níveis</span>
+          </TabsTrigger>
+          <TabsTrigger value="recompensas" className="flex items-center gap-2 py-2">
+            <Gift className="w-4 h-4" />
+            <span className="hidden sm:inline">Recompensas</span>
+          </TabsTrigger>
+          <TabsTrigger value="config" className="flex items-center gap-2 py-2">
+            <Target className="w-4 h-4" />
+            <span className="hidden sm:inline">Como Funciona</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab Clientes */}
         <TabsContent value="clientes">
           <Card>
             <CardHeader>
-              <CardTitle>Top Clientes por Pontos</CardTitle>
-              <CardDescription>Clientes com mais pontos acumulados</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Star className="w-5 h-5 text-yellow-500" />
+                Top Clientes Fidelidade
+              </CardTitle>
+              <CardDescription>Seus clientes mais engajados no programa</CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[400px]">
+              <ScrollArea className="h-[450px]">
                 <div className="space-y-3">
                   {estatisticas.topClientes.map((cliente, index) => {
                     const nivel = getNivelCliente(cliente.pontosFidelidade || 0);
                     const proximoNivel = getProximoNivel(cliente.pontosFidelidade || 0);
+                    const IconeNivel = nivel.icone;
+                    const pontosParaProximo = proximoNivel ? proximoNivel.pontosMin - (cliente.pontosFidelidade || 0) : 0;
                     const progressProximoNivel = proximoNivel
-                      ? ((cliente.pontosFidelidade || 0) / proximoNivel.pontosMin) * 100
+                      ? (((cliente.pontosFidelidade || 0) - nivel.pontosMin) / (proximoNivel.pontosMin - nivel.pontosMin)) * 100
                       : 100;
 
                     return (
                       <div
                         key={cliente.id}
-                        className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                        className="flex items-center gap-4 p-4 bg-gradient-to-r from-muted/50 to-muted/30 rounded-xl hover:from-muted/70 hover:to-muted/50 transition-all cursor-pointer border border-transparent hover:border-primary/20"
                         onClick={() => setClienteSelecionado(cliente)}
                       >
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold">
+                        {/* Posição */}
+                        <div className={cn(
+                          "flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg",
+                          index === 0 ? "bg-gradient-to-br from-yellow-400 to-amber-600 text-white shadow-lg shadow-yellow-500/30" :
+                          index === 1 ? "bg-gradient-to-br from-gray-300 to-gray-500 text-white" :
+                          index === 2 ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white" : 
+                          "bg-muted text-muted-foreground"
+                        )}>
                           {index + 1}
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{cliente.nome}</span>
-                            <span className="text-lg">{nivel.icone}</span>
-                            <Badge variant="outline" style={{ borderColor: nivel.cor, color: nivel.cor }}>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold truncate">{cliente.nome}</span>
+                            <Badge 
+                              className={cn("bg-gradient-to-r text-white border-0", nivel.corBg)}
+                            >
+                              <IconeNivel className="w-3 h-3 mr-1" />
                               {nivel.nivel}
                             </Badge>
+                            {nivel.desconto > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                {nivel.desconto}% off
+                              </Badge>
+                            )}
                           </div>
+                          
                           {proximoNivel && (
-                            <div className="mt-1">
+                            <div className="mt-2 space-y-1">
                               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span>{cliente.pontosFidelidade || 0} pontos</span>
-                                <span>Próximo: {proximoNivel.nivel} ({proximoNivel.pontosMin} pts)</span>
+                                <span>{pontosParaProximo} pts para {proximoNivel.nivel}</span>
+                                <span className="flex items-center gap-1">
+                                  <span className="text-lg">{proximoNivel.iconeEmoji}</span>
+                                </span>
                               </div>
-                              <Progress value={progressProximoNivel} className="h-1.5 mt-1" />
+                              <Progress value={progressProximoNivel} className="h-1.5" />
                             </div>
                           )}
                         </div>
+
+                        {/* Pontos */}
                         <div className="text-right">
-                          <p className="text-xl font-bold text-purple-600">{cliente.pontosFidelidade || 0}</p>
+                          <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                            {cliente.pontosFidelidade || 0}
+                          </p>
                           <p className="text-xs text-muted-foreground">pontos</p>
                         </div>
+
                         <ChevronRight className="w-5 h-5 text-muted-foreground" />
                       </div>
                     );
                   })}
                   {estatisticas.topClientes.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Gift className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>Nenhum cliente com pontos ainda</p>
-                      <p className="text-sm">Os pontos serão acumulados automaticamente a cada atendimento</p>
+                    <div className="text-center py-12">
+                      <div className="p-4 rounded-full bg-muted w-20 h-20 mx-auto flex items-center justify-center mb-4">
+                        <Gift className="w-10 h-10 text-muted-foreground" />
+                      </div>
+                      <p className="text-muted-foreground font-medium">Nenhum cliente com pontos ainda</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Os pontos são acumulados automaticamente a cada atendimento
+                      </p>
                     </div>
                   )}
                 </div>
@@ -315,34 +440,70 @@ export default function FidelidadePanel({
         <TabsContent value="niveis">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {NIVEIS_FIDELIDADE.map((nivel, index) => {
+              const IconeNivel = nivel.icone;
               const clientesNivel = estatisticas.distribuicaoNiveis[index]?.count || 0;
+              
               return (
-                <Card key={nivel.nivel} className="relative overflow-hidden">
-                  <div
-                    className="absolute top-0 left-0 right-0 h-1"
-                    style={{ backgroundColor: nivel.cor }}
-                  />
+                <Card key={nivel.nivel} className="relative overflow-hidden group hover:shadow-xl transition-all duration-300">
+                  {/* Background gradient */}
+                  <div className={cn("absolute inset-0 opacity-10 bg-gradient-to-br", nivel.corBg)} />
+                  
+                  {/* Top indicator */}
+                  <div className={cn("absolute top-0 left-0 right-0 h-1 bg-gradient-to-r", nivel.corBg)} />
+                  
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <span className="text-2xl">{nivel.icone}</span>
-                        {nivel.nivel}
-                      </CardTitle>
-                      <Badge variant="secondary">{nivel.desconto}% desc.</Badge>
+                      <div className="flex items-center gap-3">
+                        <div className={cn("p-3 rounded-xl bg-gradient-to-br text-white shadow-lg", nivel.corBg)}>
+                          <IconeNivel className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-xl">{nivel.nivel}</CardTitle>
+                          <CardDescription>
+                            A partir de {nivel.pontosMin} pontos
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <span className="text-3xl">{nivel.iconeEmoji}</span>
                     </div>
-                    <CardDescription>
-                      A partir de {nivel.pontosMin} pontos
-                    </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Clientes</span>
-                      <span className="text-2xl font-bold">{clientesNivel}</span>
+                  
+                  <CardContent className="space-y-4">
+                    {/* Desconto */}
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <span className="text-sm font-medium">Desconto</span>
+                      <span className={cn(
+                        "text-xl font-bold",
+                        nivel.desconto > 0 ? "text-green-600" : "text-muted-foreground"
+                      )}>
+                        {nivel.desconto > 0 ? `${nivel.desconto}%` : '—'}
+                      </span>
                     </div>
-                    <Progress
-                      value={clientes.length > 0 ? (clientesNivel / clientes.length) * 100 : 0}
-                      className="h-2 mt-2"
-                    />
+
+                    {/* Benefícios */}
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">BENEFÍCIOS</p>
+                      <ul className="space-y-1.5">
+                        {nivel.beneficios.map((b, i) => (
+                          <li key={i} className="flex items-center gap-2 text-sm">
+                            <Check className="w-4 h-4 text-green-500" />
+                            {b}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Progress */}
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-muted-foreground">Clientes neste nível</span>
+                        <span className="font-semibold">{clientesNivel}</span>
+                      </div>
+                      <Progress 
+                        value={estatisticas.totalClientes > 0 ? (clientesNivel / estatisticas.totalClientes) * 100 : 0} 
+                        className="h-2" 
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -352,95 +513,124 @@ export default function FidelidadePanel({
 
         {/* Tab Recompensas */}
         <TabsContent value="recompensas">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recompensas Disponíveis</CardTitle>
-              <CardDescription>Os clientes podem resgatar essas recompensas com seus pontos</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {RECOMPENSAS.map(recompensa => (
-                  <Card key={recompensa.id} className="border-purple-200 dark:border-purple-800">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-medium">{recompensa.nome}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {recompensa.tipo === 'desconto' && `Desconto de R$${recompensa.valor}`}
-                            {recompensa.tipo === 'servico' && `Até R$${recompensa.valor}`}
-                            {recompensa.tipo === 'pacote' && `Valor até R$${recompensa.valor}`}
-                          </p>
-                        </div>
-                        <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                          {recompensa.pontos} pts
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {RECOMPENSAS.map(recompensa => (
+              <Card key={recompensa.id} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 hover:border-purple-300 dark:hover:border-purple-700">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <span className="text-4xl">{recompensa.icone}</span>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg">{recompensa.nome}</h4>
+                      <p className="text-sm text-muted-foreground mt-1">{recompensa.descricao}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 flex items-center justify-between">
+                    <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 px-3 py-1">
+                      <Star className="w-3 h-3 mr-1" />
+                      {recompensa.pontos} pontos
+                    </Badge>
+                    <span className="text-sm font-semibold text-green-600">
+                      Vale R$ {recompensa.valor}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </TabsContent>
 
         {/* Tab Configurações */}
         <TabsContent value="config">
           <Card>
             <CardHeader>
-              <CardTitle>Configurações do Programa</CardTitle>
-              <CardDescription>Configure como os pontos são ganhos e usados</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-yellow-500" />
+                Como Funciona o Programa
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Regras */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-600" />
+                  <h4 className="font-semibold flex items-center gap-2 text-lg">
+                    <Sparkles className="w-5 h-5 text-purple-500" />
                     Regras de Pontuação
                   </h4>
-                  <div className="p-4 bg-muted/30 rounded-lg space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Pontos por R$1 gasto</span>
-                      <Badge variant="secondary">1 ponto</Badge>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <DollarSign className="w-5 h-5 text-green-600" />
+                        <span className="font-medium">Por R$1 gasto</span>
+                      </div>
+                      <Badge className="bg-green-600">1 ponto</Badge>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Bônus primeira visita</span>
-                      <Badge variant="secondary">10 pontos</Badge>
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <UserPlus className="w-5 h-5 text-blue-600" />
+                        <span className="font-medium">Primeira visita</span>
+                      </div>
+                      <Badge className="bg-blue-600">10 pontos</Badge>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Bônus indicação</span>
-                      <Badge variant="secondary">20 pontos</Badge>
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <Heart className="w-5 h-5 text-purple-600" />
+                        <span className="font-medium">Indicação de amigo</span>
+                      </div>
+                      <Badge className="bg-purple-600">20 pontos</Badge>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Pontos expiram em</span>
-                      <Badge variant="secondary">12 meses</Badge>
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <Gift className="w-5 h-5 text-orange-600" />
+                        <span className="font-medium">Aniversário</span>
+                      </div>
+                      <Badge className="bg-orange-600">50 pontos</Badge>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Award className="w-4 h-4 text-yellow-600" />
+                  <h4 className="font-semibold flex items-center gap-2 text-lg">
+                    <Award className="w-5 h-5 text-yellow-500" />
                     Benefícios por Nível
                   </h4>
-                  <div className="p-4 bg-muted/30 rounded-lg space-y-2">
-                    {NIVEIS_FIDELIDADE.map(nivel => (
-                      <div key={nivel.nivel} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span>{nivel.icone}</span>
-                          <span className="text-sm">{nivel.nivel}</span>
+                  <div className="space-y-2">
+                    {NIVEIS_FIDELIDADE.map(nivel => {
+                      const IconeNivel = nivel.icone;
+                      return (
+                        <div 
+                          key={nivel.nivel}
+                          className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            <IconeNivel className="w-5 h-5" style={{ color: nivel.cor }} />
+                            <span className="font-medium">{nivel.nivel}</span>
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {nivel.desconto > 0 ? `${nivel.desconto}% desconto` : 'Sem desconto'}
+                          </span>
                         </div>
-                        <span className="text-sm text-muted-foreground">{nivel.desconto}% desconto</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
 
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Dica:</strong> Os pontos são acumulados automaticamente quando um cliente finaliza um atendimento.
-                  Para cada R$1 gasto, o cliente ganha 1 ponto. Quanto mais pontos, maior o nível e maiores os descontos!
-                </p>
+              {/* Dica */}
+              <div className="p-6 bg-gradient-to-r from-purple-100 via-pink-100 to-orange-100 dark:from-purple-900/30 dark:via-pink-900/30 dark:to-orange-900/30 rounded-xl border-2 border-purple-200 dark:border-purple-800">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-xl bg-white dark:bg-gray-800 shadow-lg">
+                    <Lightbulb className="w-6 h-6 text-yellow-500" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-lg mb-2">💡 Dica Pro</h4>
+                    <p className="text-muted-foreground">
+                      Os pontos são acumulados automaticamente quando um cliente finaliza um atendimento no PDV. 
+                      Para cada R$1 gasto, o cliente ganha 1 ponto. Quanto mais pontos, maior o nível e melhores os descontos!
+                      Mostre para seus clientes que eles podem economizar e ganhar benefícios exclusivos.
+                    </p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -454,7 +644,7 @@ export default function FidelidadePanel({
             <DialogTitle className="flex items-center gap-2">
               {clienteSelecionado && (
                 <>
-                  <span>{getNivelCliente(clienteSelecionado.pontosFidelidade || 0).icone}</span>
+                  <span className="text-2xl">{getNivelCliente(clienteSelecionado.pontosFidelidade || 0).iconeEmoji}</span>
                   {clienteSelecionado.nome}
                 </>
               )}
@@ -466,22 +656,21 @@ export default function FidelidadePanel({
 
           {clienteSelecionado && (
             <div className="space-y-4">
-              <div className="text-center py-4 bg-muted/30 rounded-lg">
-                <p className="text-4xl font-bold text-purple-600">
+              {/* Pontos */}
+              <div className="text-center py-6 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 dark:from-purple-900/20 dark:via-pink-900/20 dark:to-orange-900/20 rounded-xl">
+                <p className="text-5xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                   {clienteSelecionado.pontosFidelidade || 0}
                 </p>
-                <p className="text-sm text-muted-foreground">pontos disponíveis</p>
+                <p className="text-sm text-muted-foreground mt-1">pontos disponíveis</p>
                 <Badge
-                  className="mt-2"
-                  style={{
-                    backgroundColor: getNivelCliente(clienteSelecionado.pontosFidelidade || 0).cor + '20',
-                    color: getNivelCliente(clienteSelecionado.pontosFidelidade || 0).cor
-                  }}
+                  className="mt-3 text-white border-0"
+                  style={{ background: `linear-gradient(to right, ${getNivelCliente(clienteSelecionado.pontosFidelidade || 0).cor}, ${getNivelCliente(clienteSelecionado.pontosFidelidade || 0).cor}dd)` }}
                 >
                   Nível {getNivelCliente(clienteSelecionado.pontosFidelidade || 0).nivel}
                 </Badge>
               </div>
 
+              {/* Ações */}
               <div className="flex gap-2">
                 <Button
                   className="flex-1"
@@ -492,7 +681,7 @@ export default function FidelidadePanel({
                   Adicionar Pontos
                 </Button>
                 <Button
-                  className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
                   onClick={() => setShowResgateDialog(true)}
                   disabled={(clienteSelecionado.pontosFidelidade || 0) < 50}
                 >
@@ -506,12 +695,12 @@ export default function FidelidadePanel({
                 <div>
                   <h4 className="font-medium mb-2 flex items-center gap-2">
                     <History className="w-4 h-4" />
-                    Histórico
+                    Histórico Recente
                   </h4>
                   <ScrollArea className="h-[150px]">
                     <div className="space-y-2">
                       {clienteSelecionado.historicoPontos.slice(-10).reverse().map((h: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between text-sm p-2 bg-muted/30 rounded">
+                        <div key={i} className="flex items-center justify-between text-sm p-2 bg-muted/30 rounded-lg">
                           <div>
                             <p>{h.motivo}</p>
                             <p className="text-xs text-muted-foreground">
@@ -519,7 +708,7 @@ export default function FidelidadePanel({
                             </p>
                           </div>
                           <span className={cn(
-                            "font-medium",
+                            "font-semibold",
                             h.tipo === 'credito' ? 'text-green-600' : 'text-red-600'
                           )}>
                             {h.tipo === 'credito' ? '+' : '-'}{Math.abs(h.pontos)}
@@ -552,6 +741,7 @@ export default function FidelidadePanel({
                 value={pontosParaAdicionar || ''}
                 onChange={(e) => setPontosParaAdicionar(parseInt(e.target.value) || 0)}
                 placeholder="Quantidade de pontos"
+                className="text-lg"
               />
             </div>
             <div>
@@ -588,28 +778,32 @@ export default function FidelidadePanel({
               <div
                 key={recompensa.id}
                 className={cn(
-                  "flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors",
+                  "flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all",
                   recompensaSelecionada?.id === recompensa.id
                     ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
-                    : "hover:bg-muted/50"
+                    : "hover:border-purple-300 hover:bg-muted/50"
                 )}
                 onClick={() => setRecompensaSelecionada(recompensa)}
               >
-                <div>
+                <span className="text-3xl">{recompensa.icone}</span>
+                <div className="flex-1">
                   <p className="font-medium">{recompensa.nome}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {recompensa.pontos} pontos
-                  </p>
+                  <p className="text-sm text-muted-foreground">{recompensa.descricao}</p>
                 </div>
+                <Badge className="bg-purple-100 text-purple-700">
+                  {recompensa.pontos} pts
+                </Badge>
                 {recompensaSelecionada?.id === recompensa.id && (
                   <Check className="w-5 h-5 text-purple-600" />
                 )}
               </div>
             ))}
             {RECOMPENSAS.filter(r => r.pontos <= (clienteSelecionado?.pontosFidelidade || 0)).length === 0 && (
-              <p className="text-center text-muted-foreground py-4">
-                Pontos insuficientes para resgatar recompensas
-              </p>
+              <div className="text-center py-8 text-muted-foreground">
+                <Gift className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>Pontos insuficientes para resgatar recompensas</p>
+                <p className="text-sm mt-1">Continue acumulando pontos!</p>
+              </div>
             )}
           </div>
           <DialogFooter>
@@ -619,7 +813,7 @@ export default function FidelidadePanel({
             <Button
               onClick={handleResgatarRecompensa}
               disabled={!recompensaSelecionada}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
             >
               Resgatar
             </Button>
@@ -627,5 +821,30 @@ export default function FidelidadePanel({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Helper component
+function UserPlus({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+    </svg>
+  );
+}
+
+function Lightbulb({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+    </svg>
+  );
+}
+
+function DollarSign({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
   );
 }
