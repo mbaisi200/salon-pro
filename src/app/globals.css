@@ -44,107 +44,109 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   
-  /* Modern Light Theme - Elegant Blue & Rose */
-  --background: #FAFBFC;
-  --foreground: #1F2937;
+  /* Modern Premium Light Theme */
+  --background: #F8FAFC;
+  --foreground: #0F172A;
   --card: #FFFFFF;
-  --card-foreground: #1F2937;
+  --card-foreground: #0F172A;
   --popover: #FFFFFF;
-  --popover-foreground: #1F2937;
+  --popover-foreground: #0F172A;
   
-  /* Primary - Deep Elegant Blue */
-  --primary: #2563EB;
+  /* Primary - Rich Indigo with Gradient feel */
+  --primary: #6366F1;
   --primary-foreground: #FFFFFF;
   
-  /* Secondary - Soft Slate */
+  /* Secondary - Warm Gray */
   --secondary: #F1F5F9;
   --secondary-foreground: #475569;
   
-  /* Muted - Subtle Gray */
+  /* Muted - Soft Gray */
   --muted: #F1F5F9;
   --muted-foreground: #64748B;
   
-  /* Accent - Coral Rose (para salão de beleza) */
-  --accent: #F43F5E;
+  /* Accent - Vibrant Rose Gold - Perfect for Beauty */
+  --accent: #EC4899;
   --accent-foreground: #FFFFFF;
   
   /* Destructive */
   --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
   
   /* Borders & Inputs */
   --border: #E2E8F0;
   --input: #E2E8F0;
-  --ring: #2563EB;
+  --ring: #6366F1;
   
   /* Charts - Vibrant & Harmonious */
-  --chart-1: #2563EB;
-  --chart-2: #F43F5E;
+  --chart-1: #6366F1;
+  --chart-2: #EC4899;
   --chart-3: #10B981;
   --chart-4: #F59E0B;
   --chart-5: #8B5CF6;
   
-  /* Sidebar - Light & Clean */
+  /* Sidebar - Modern Light */
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #1F2937;
-  --sidebar-primary: #2563EB;
+  --sidebar-foreground: #0F172A;
+  --sidebar-primary: #6366F1;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #DBEAFE;
-  --sidebar-accent-foreground: #1E40AF;
+  --sidebar-accent: #EEF2FF;
+  --sidebar-accent-foreground: #4338CA;
   --sidebar-border: #E2E8F0;
-  --sidebar-ring: #2563EB;
+  --sidebar-ring: #6366F1;
 }
 
 .dark {
-  /* Modern Dark Theme */
-  --background: #0F172A;
-  --foreground: #F1F5F9;
-  --card: #1E293B;
-  --card-foreground: #F1F5F9;
-  --popover: #1E293B;
-  --popover-foreground: #F1F5F9;
+  /* Modern Premium Dark Theme */
+  --background: #030712;
+  --foreground: #F9FAFB;
+  --card: #111827;
+  --card-foreground: #F9FAFB;
+  --popover: #111827;
+  --popover-foreground: #F9FAFB;
   
-  /* Primary - Bright Blue */
-  --primary: #3B82F6;
-  --primary-foreground: #FFFFFF;
+  /* Primary - Bright Indigo */
+  --primary: #818CF8;
+  --primary-foreground: #0F172A;
   
   /* Secondary - Dark Slate */
-  --secondary: #334155;
-  --secondary-foreground: #F1F5F9;
+  --secondary: #1F2937;
+  --secondary-foreground: #F9FAFB;
   
   /* Muted */
-  --muted: #334155;
-  --muted-foreground: #94A3B8;
+  --muted: #1F2937;
+  --muted-foreground: #9CA3AF;
   
   /* Accent - Vibrant Rose */
-  --accent: #FB7185;
+  --accent: #F472B6;
   --accent-foreground: #0F172A;
   
   /* Destructive */
   --destructive: #F87171;
+  --destructive-foreground: #0F172A;
   
   /* Borders & Inputs */
-  --border: #334155;
-  --input: #334155;
-  --ring: #3B82F6;
+  --border: #374151;
+  --input: #374151;
+  --ring: #818CF8;
   
   /* Charts */
-  --chart-1: #3B82F6;
-  --chart-2: #FB7185;
+  --chart-1: #818CF8;
+  --chart-2: #F472B6;
   --chart-3: #34D399;
   --chart-4: #FBBF24;
   --chart-5: #A78BFA;
   
-  /* Sidebar - Dark but softer */
-  --sidebar: #1E293B;
-  --sidebar-foreground: #F1F5F9;
-  --sidebar-primary: #FB7185;
+  /* Sidebar - Deep Dark */
+  --sidebar: #111827;
+  --sidebar-foreground: #F9FAFB;
+  --sidebar-primary: #818CF8;
   --sidebar-primary-foreground: #0F172A;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #F1F5F9;
-  --sidebar-border: #334155;
-  --sidebar-ring: #3B82F6;
+  --sidebar-accent: #1F2937;
+  --sidebar-accent-foreground: #F9FAFB;
+  --sidebar-border: #374151;
+  --sidebar-ring: #818CF8;
 }
 
 @layer base {
@@ -156,21 +158,198 @@
   }
 }
 
-/* Forçar cor azul no hover do sidemenu */
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4B5563;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6B7280;
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark .glass {
+  background: rgba(17, 24, 39, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Gradient backgrounds */
+.gradient-primary {
+  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg, #EC4899 0%, #F43F5E 100%);
+}
+
+.gradient-mesh {
+  background: 
+    radial-gradient(at 40% 20%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, rgba(236, 72, 153, 0.1) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+}
+
+/* Soft shadows */
+.shadow-soft {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.shadow-soft-lg {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* Animated gradient border */
+@keyframes gradient-rotate {
+  0% { --gradient-angle: 0deg; }
+  360deg { --gradient-angle: 360deg; }
+}
+
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(var(--gradient-angle), #6366F1, #EC4899, #6366F1);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: gradient-rotate 3s linear infinite;
+}
+
+/* Button hover effects */
+.btn-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s ease;
+}
+
+.btn-glow:hover::after {
+  transform: translateX(100%);
+}
+
+/* Card hover lift */
+.card-hover {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(99, 102, 241, 0.15);
+}
+
+/* Sidebar hover effects */
 aside nav button:hover {
-  background-color: #DBEAFE !important;
-  color: #1E40AF !important;
+  background-color: #EEF2FF !important;
+  color: #4338CA !important;
 }
 
 aside nav button:hover svg {
-  color: #1E40AF !important;
+  color: #4338CA !important;
 }
 
 .dark aside nav button:hover {
-  background-color: #1E3A5F !important;
-  color: #93C5FD !important;
+  background-color: #1E293B !important;
+  color: #A5B4FC !important;
 }
 
 .dark aside nav button:hover svg {
-  color: #93C5FD !important;
+  color: #A5B4FC !important;
+}
+
+/* Status badges with glow */
+.status-badge {
+  position: relative;
+}
+
+.status-badge::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: inherit;
+  filter: blur(8px);
+  opacity: 0.5;
+  z-index: -1;
+}
+
+/* Input focus glow */
+input:focus, select:focus, textarea:focus {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Login page animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.6); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Modern card style */
+.modern-card {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.dark .modern-card {
+  background: #1F2937;
+  border-color: rgba(55, 65, 81, 0.8);
 }

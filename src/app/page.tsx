@@ -16,7 +16,7 @@ import {
   Sun, Moon, LayoutDashboard, UserCog, Briefcase, Wallet, ArrowUpRight, ArrowDownRight,
   ChevronLeft, Bell, CreditCard, MapPin, Download, FileSpreadsheet, FileText, Filter,
   Package, ShoppingCart, Percent, Star, History, Save, Printer, Trash, Database,
-  Gift, MessageCircle, Sparkles, Target, Award, Activity
+  Gift, MessageCircle, Sparkles, Target, Award, Activity, KeyRound, LogIn
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 
@@ -1774,21 +1774,30 @@ export default function SalonApp() {
   // =====================================
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-blue-900 p-4">
-        <Card className="w-full max-w-md shadow-2xl border-blue-200 dark:border-blue-800">
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg">
-              <Scissors className="w-8 h-8 text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        {/* Background with mesh gradient */}
+        <div className="absolute inset-0 gradient-mesh" />
+        
+        {/* Animated circles */}
+        <div className="absolute top-20 left-20 w-72 h-72 bg-primary/20 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-accent/15 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
+        
+        <Card className="w-full max-w-md relative z-10 modern-card animate-pulse-glow">
+          <CardHeader className="text-center space-y-6 pb-8">
+            <div className="mx-auto w-20 h-20 gradient-primary rounded-2xl flex items-center justify-center shadow-lg animate-float">
+              <Scissors className="w-10 h-10 text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold text-blue-600">
-              Salon System
-            </CardTitle>
-            <CardDescription>
-              Sistema de Gestão para Salões de Beleza
-            </CardDescription>
+            <div>
+              <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                SalonPro
+              </CardTitle>
+              <CardDescription className="text-muted-foreground mt-2">
+                Sistema de Gestão para Salões de Beleza
+              </CardDescription>
+            </div>
             <div className={cn(
-              "absolute top-4 right-4 flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full",
-              connectionStatus === 'online' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+              "absolute top-4 right-4 flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-full glass",
+              connectionStatus === 'online' ? "text-green-600" : "text-red-600"
             )}>
               <div className={cn(
                 "w-2 h-2 rounded-full",
@@ -1799,15 +1808,24 @@ export default function SalonApp() {
           </CardHeader>
           <CardContent>
             <Form {...loginForm}>
-              <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+              <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-5">
                 <FormField
                   control={loginForm.control}
                   name="usuario"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Usuário</FormLabel>
+                      <FormLabel className="text-sm font-medium">Usuário</FormLabel>
                       <FormControl>
-                        <Input placeholder="Digite seu usuário" {...field} />
+                        <div className="relative">
+                          <Input 
+                            placeholder="Digite seu usuário" 
+                            {...field} 
+                            className="pl-10 h-12 bg-muted/50 border-muted focus:bg-background transition-all"
+                          />
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            <Users className="w-4 h-4" />
+                          </div>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1818,9 +1836,19 @@ export default function SalonApp() {
                   name="senha"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Senha</FormLabel>
+                      <FormLabel className="text-sm font-medium">Senha</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
+                        <div className="relative">
+                          <Input 
+                            type="password" 
+                            placeholder="••••••••" 
+                            {...field} 
+                            className="pl-10 h-12 bg-muted/50 border-muted focus:bg-background transition-all"
+                          />
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            <KeyRound className="w-4 h-4" />
+                          </div>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1828,26 +1856,36 @@ export default function SalonApp() {
                 />
                 
                 {loginError && (
-                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4" />
+                  <div className="p-4 rounded-xl bg-destructive/10 text-destructive text-sm flex items-center gap-3 border border-destructive/20">
+                    <AlertTriangle className="w-5 h-5 shrink-0" />
                     {loginError}
                   </div>
                 )}
                 
                 <Button 
                   type="submit" 
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full h-12 gradient-primary hover:opacity-90 text-white font-medium rounded-xl shadow-lg hover:shadow-xl transition-all btn-glow"
                   disabled={loading}
                 >
-                  {loading ? 'Entrando...' : 'Entrar'}
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Entrando...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <LogIn className="w-4 h-4" />
+                      Entrar
+                    </span>
+                  )}
                 </Button>
               </form>
             </Form>
             
-            <div className="mt-6 pt-6 border-t dark:border-gray-700 text-center">
+            <div className="mt-8 pt-6 border-t border-border/50 text-center">
               <Button 
                 variant="link" 
-                className="text-sm text-muted-foreground"
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
                 onClick={() => setShowAlterarSenha(true)}
               >
                 Esqueci minha senha
@@ -1858,16 +1896,15 @@ export default function SalonApp() {
         
         {/* Dialog Alterar Senha no Login */}
         <Dialog open={showAlterarSenha} onOpenChange={setShowAlterarSenha}>
-          <DialogContent>
+          <DialogContent className="modern-card">
             <DialogHeader>
-              <DialogTitle>Recuperar Senha</DialogTitle>
+              <DialogTitle className="text-xl font-semibold">Recuperar Senha</DialogTitle>
               <DialogDescription>
                 Entre em contato com o administrador do sistema para redefinir sua senha.
               </DialogDescription>
             </DialogHeader>
-            <div className="text-sm text-muted-foreground space-y-2">
-              <p>Se você é o administrador master, acesse o sistema com suas credenciais atuais e altere a senha nas configurações.</p>
-              <p>Se esqueceu sua senha de salão, entre em contato com o administrador master do sistema.</p>
+            <div className="text-sm text-muted-foreground space-y-3 p-4 bg-muted/30 rounded-xl">
+              <p>Se você é o administrador master, accesses</p>
             </div>
             <DialogFooter>
               <Button onClick={() => setShowAlterarSenha(false)}>Entendi</Button>
@@ -1883,23 +1920,29 @@ export default function SalonApp() {
   // =====================================
   if (isExpired && tenant) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-orange-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
-        <Card className="w-full max-w-md shadow-2xl border-red-100 dark:border-red-900">
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center">
-              <AlertTriangle className="w-8 h-8 text-red-500" />
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 gradient-mesh" />
+        <div className="absolute top-20 left-20 w-72 h-72 bg-destructive/20 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-orange-500/15 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
+        
+        <Card className="w-full max-w-md relative z-10 modern-card">
+          <CardHeader className="text-center space-y-6 pb-8">
+            <div className="mx-auto w-20 h-20 bg-destructive/20 rounded-2xl flex items-center justify-center">
+              <AlertTriangle className="w-10 h-10 text-destructive" />
             </div>
-            <CardTitle className="text-2xl font-bold text-red-600">
-              Acesso Expirado
-            </CardTitle>
-            <CardDescription>
-              O período de acesso da sua empresa expirou
-            </CardDescription>
+            <div>
+              <CardTitle className="text-2xl font-bold text-destructive">
+                Acesso Expirado
+              </CardTitle>
+              <CardDescription className="text-muted-foreground mt-2">
+                O período de acesso da sua empresa expirou
+              </CardDescription>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-center">
-              <p className="font-medium">{tenant.nome}</p>
-              <p className="text-sm text-muted-foreground mt-1">
+          <CardContent className="space-y-6">
+            <div className="p-5 rounded-xl bg-muted/50 text-center space-y-2">
+              <p className="font-semibold text-lg">{tenant.nome}</p>
+              <p className="text-sm text-muted-foreground">
                 Expirou em: {tenant.dataExpiracao ? format(new Date(tenant.dataExpiracao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : 'N/A'}
               </p>
             </div>
@@ -1911,7 +1954,7 @@ export default function SalonApp() {
             <Button 
               onClick={handleLogout}
               variant="outline"
-              className="w-full"
+              className="w-full h-12 rounded-xl"
             >
               <LogOut className="w-4 h-4 mr-2" />
               Sair
@@ -1947,67 +1990,75 @@ export default function SalonApp() {
     
     return (
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0 flex flex-col",
+        "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0 flex flex-col shadow-xl",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Scissors className="w-4 h-4 text-primary-foreground" />
+        <div className="flex items-center justify-between h-20 px-4 border-b border-sidebar-border shrink-0 gradient-primary">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center shadow-lg">
+              <Scissors className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-primary">
-              Salon System
-            </span>
+            <div>
+              <span className="font-bold text-white text-lg">SalonPro</span>
+              <p className="text-[10px] text-white/70">{tenant?.nome || 'Sistema'}</p>
+            </div>
           </div>
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(false)}>
-            <X className="w-4 h-4" />
+          <Button variant="ghost" size="icon" className="lg:hidden text-white hover:bg-white/20" onClick={() => setSidebarOpen(false)}>
+            <X className="w-5 h-5" />
           </Button>
         </div>
         
-        <ScrollArea className="flex-1 min-h-0">
-          <nav className="p-4 space-y-1">
+        <ScrollArea className="flex-1 min-h-0 py-4">
+          <nav className="px-3 space-y-1">
             {menuItems.map((item) => (
               <Button
                 key={item.id}
                 variant="ghost"
                 className={cn(
-                  "w-full justify-start gap-3",
-                  currentView === item.id && "bg-sidebar-accent text-sidebar-accent-foreground"
+                  "w-full justify-start gap-3 h-12 px-4 rounded-xl transition-all duration-200",
+                  currentView === item.id 
+                    ? "bg-primary/10 text-primary font-medium shadow-sm" 
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
                 onClick={() => setCurrentView(item.id as any)}
               >
-                <item.icon className="w-4 h-4" />
+                <div className={cn(
+                  "p-2 rounded-lg",
+                  currentView === item.id ? "bg-primary text-white" : "bg-muted"
+                )}>
+                  <item.icon className="w-4 h-4" />
+                </div>
                 {item.label}
               </Button>
             ))}
           </nav>
         </ScrollArea>
         
-        <div className="shrink-0 p-4 border-t border-sidebar-border">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-muted-foreground">Tema</span>
-            <Button variant="ghost" size="icon" onClick={toggleDarkMode}>
+        <div className="shrink-0 p-4 border-t border-sidebar-border bg-muted/30">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Preferências</span>
+            <Button variant="ghost" size="icon" onClick={toggleDarkMode} className="h-8 w-8 rounded-lg hover:bg-muted">
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
           </div>
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-4 p-3 rounded-xl bg-muted/50">
             <div className={cn(
-              "w-2 h-2 rounded-full",
-              connectionStatus === 'online' ? "bg-green-500" : "bg-red-500"
+              "w-2.5 h-2.5 rounded-full ring-2",
+              connectionStatus === 'online' ? "bg-green-500 ring-green-500/30" : "bg-red-500 ring-red-500/30 animate-pulse"
             )} />
-            <span className="text-xs text-muted-foreground">
-              {connectionStatus === 'online' ? 'Online' : 'Offline'}
+            <span className="text-xs text-muted-foreground font-medium">
+              {connectionStatus === 'online' ? 'Conectado' : 'Desconectado'}
             </span>
           </div>
           <Button 
             variant="ghost" 
-            className="w-full justify-start mb-2 text-muted-foreground"
+            className="w-full justify-start mb-2 h-11 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={() => setShowAlterarSenha(true)}
           >
-            <Settings className="w-4 h-4 mr-2" />
-            Alterar Senha
+            <Settings className="w-4 h-4 mr-3" />
+            Configurações
           </Button>
-          <Button variant="outline" className="w-full" onClick={handleLogout}>
+          <Button variant="outline" className="w-full h-11 rounded-xl" onClick={handleLogout}>
             <LogOut className="w-4 h-4 mr-2" />
             Sair
           </Button>
@@ -4354,14 +4405,19 @@ export default function SalonApp() {
   // RENDER PRINCIPAL
   // =====================================
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-900 border-b dark:border-gray-800 flex items-center justify-between px-4 z-40">
-        <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-800 flex items-center justify-between px-4 z-40 shadow-sm">
+        <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} className="hover:bg-primary/10">
           <Menu className="w-5 h-5" />
         </Button>
-        <span className="font-bold text-blue-600">Salon System</span>
-        <Button variant="ghost" size="icon" onClick={toggleDarkMode}>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
+            <Scissors className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-bold text-lg">SalonPro</span>
+        </div>
+        <Button variant="ghost" size="icon" onClick={toggleDarkMode} className="hover:bg-primary/10">
           {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </Button>
       </div>

@@ -10,16 +10,18 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:ring-offset-2 active:scale-[0.97]",
         destructive:
-          "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive text-white shadow-sm hover:bg-destructive/90 focus-visible:ring-offset-2 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60 active:scale-[0.97]",
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:ring-offset-2 focus-visible:ring-accent/20 dark:bg-input/30 dark:border-input dark:hover:bg-input/50 active:scale-[0.97]",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 focus-visible:ring-offset-2 focus-visible:ring-secondary/20 active:scale-[0.97]",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "hover:bg-accent hover:text-accent-foreground focus-visible:ring-offset-2 focus-visible:ring-accent/20 dark:hover:bg-accent/50 active:scale-[0.97]",
+        link: "text-primary underline-offset-4 hover:underline focus-visible:ring-offset-2 focus-visible:ring-primary/20 active:scale-[0.97]",
+        glass:
+          "bg-background/60 text-primary-foreground backdrop-blur-sm border border-background/20 hover:bg-background/70 focus-visible:ring-offset-2 focus-visible:ring-primary/30 active:scale-[0.97] dark:bg-muted/60 dark:text-muted-foreground dark:border-muted/30 dark:hover:bg-muted/70",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
