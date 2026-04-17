@@ -18,6 +18,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 // =====================================
@@ -114,6 +115,17 @@ export default function FidelidadePanel({
   const [pontosParaAdicionar, setPontosParaAdicionar] = useState(0);
   const [motivoPontos, setMotivoPontos] = useState('');
   const [recompensaSelecionada, setRecompensaSelecionada] = useState<any>(null);
+  const [planosPersonalizados, setPlanosPersonalizados] = useState<any[]>([]);
+  const [showNovoPlanoDialog, setShowNovoPlanoDialog] = useState(false);
+  const [editingPlano, setEditingPlano] = useState<any>(null);
+  const [novoPlano, setNovoPlano] = useState({
+    nome: '',
+    descricao: '',
+    pontos: 0,
+    tipo: 'desconto' as 'desconto' | 'servico' | 'pacote' | 'vip',
+    valor: 0,
+    icone: '🎁'
+  });
 
   // =====================================
   // CÁLCULOS
@@ -319,7 +331,7 @@ export default function FidelidadePanel({
 
       {/* Tabs */}
       <Tabs defaultValue="clientes" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="clientes" className="flex items-center gap-2 py-2">
             <Users className="w-4 h-4" />
             <span className="hidden sm:inline">Clientes</span>
@@ -331,6 +343,10 @@ export default function FidelidadePanel({
           <TabsTrigger value="recompensas" className="flex items-center gap-2 py-2">
             <Gift className="w-4 h-4" />
             <span className="hidden sm:inline">Recompensas</span>
+          </TabsTrigger>
+          <TabsTrigger value="planos" className="flex items-center gap-2 py-2">
+            <Sparkles className="w-4 h-4" />
+            <span className="hidden sm:inline">Meus Planos</span>
           </TabsTrigger>
           <TabsTrigger value="config" className="flex items-center gap-2 py-2">
             <Target className="w-4 h-4" />
@@ -540,6 +556,90 @@ export default function FidelidadePanel({
           </div>
         </TabsContent>
 
+        {/* Tab Planos Personalizados */}
+        <TabsContent value="planos">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Planos Personalizados</h3>
+                <p className="text-sm text-muted-foreground">Crie seus próprios planos de fidelidade</p>
+              </div>
+              <Button onClick={() => {
+                setEditingPlano(null);
+                setNovoPlano({ nome: '', descricao: '', pontos: 0, tipo: 'desconto', valor: 0, icone: '🎁' });
+                setShowNovoPlanoDialog(true);
+              }}>
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Plano
+              </Button>
+            </div>
+
+            {planosPersonalizados.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <div className="p-4 rounded-full bg-muted w-20 h-20 mx-auto flex items-center justify-center mb-4">
+                    <Sparkles className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <p className="text-lg font-medium mb-2">Nenhum plano personalizado</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Crie planos exclusivos para recompensar seus clientes especiais
+                  </p>
+                  <Button onClick={() => {
+                    setEditingPlano(null);
+                    setNovoPlano({ nome: '', descricao: '', pontos: 0, tipo: 'desconto', valor: 0, icone: '🎁' });
+                    setShowNovoPlanoDialog(true);
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Criar Primeiro Plano
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {planosPersonalizados.map((plano, index) => (
+                  <Card key={index} className="group hover:shadow-lg transition-all duration-300 border-2 hover:border-purple-300 dark:hover:border-purple-700">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-3xl">{plano.icone}</span>
+                          <div>
+                            <h4 className="font-semibold text-lg">{plano.nome}</h4>
+                            <Badge variant="outline" className="mt-1 capitalize">{plano.tipo}</Badge>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                            setEditingPlano(plano);
+                            setNovoPlano({ ...plano });
+                            setShowNovoPlanoDialog(true);
+                          }}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => {
+                            setPlanosPersonalizados(planosPersonalizados.filter((_, i) => i !== index));
+                          }}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-4">{plano.descricao}</p>
+                      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Star className="w-4 h-4 text-yellow-500" />
+                          <span className="font-semibold">{plano.pontos} pontos</span>
+                        </div>
+                        <span className="text-sm font-medium text-green-600">
+                          {plano.tipo === 'desconto' ? `R$ ${plano.valor} off` : `Vale R$ ${plano.valor}`}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
         {/* Tab Configurações */}
         <TabsContent value="config">
           <Card>
@@ -721,6 +821,113 @@ export default function FidelidadePanel({
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Novo/Editar Plano Personalizado */}
+      <Dialog open={showNovoPlanoDialog} onOpenChange={setShowNovoPlanoDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingPlano ? 'Editar Plano' : 'Novo Plano Personalizado'}</DialogTitle>
+            <DialogDescription>
+              Crie um plano exclusivo para seus clientes
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Ícone</Label>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {['🎁', '💎', '⭐', '🌟', '✨', '👑', '💫', '🎉', '🏆', '💝', '🎀', '🌈'].map(emoji => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className={cn(
+                      "w-10 h-10 text-xl rounded-lg border-2 transition-all",
+                      novoPlano.icone === emoji ? "border-purple-500 bg-purple-50" : "border-muted hover:border-purple-300"
+                    )}
+                    onClick={() => setNovoPlano({ ...novoPlano, icone: emoji })}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Nome do Plano</Label>
+              <Input
+                value={novoPlano.nome}
+                onChange={(e) => setNovoPlano({ ...novoPlano, nome: e.target.value })}
+                placeholder="Ex: Pacote VIP Mensal"
+              />
+            </div>
+            <div>
+              <Label>Descrição</Label>
+              <Input
+                value={novoPlano.descricao}
+                onChange={(e) => setNovoPlano({ ...novoPlano, descricao: e.target.value })}
+                placeholder="Ex: Inclui 5 serviços à escolha"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Tipo</Label>
+                <Select value={novoPlano.tipo} onValueChange={(v: any) => setNovoPlano({ ...novoPlano, tipo: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desconto">Desconto</SelectItem>
+                    <SelectItem value="servico">Serviço Grátis</SelectItem>
+                    <SelectItem value="pacote">Pacote</SelectItem>
+                    <SelectItem value="vip">VIP</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Valor (R$)</Label>
+                <Input
+                  type="number"
+                  value={novoPlano.valor || ''}
+                  onChange={(e) => setNovoPlano({ ...novoPlano, valor: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Pontos necessários</Label>
+              <Input
+                type="number"
+                value={novoPlano.pontos || ''}
+                onChange={(e) => setNovoPlano({ ...novoPlano, pontos: parseInt(e.target.value) || 0 })}
+                placeholder="100"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNovoPlanoDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!novoPlano.nome || novoPlano.pontos <= 0) {
+                  alert('Preencha todos os campos obrigatórios');
+                  return;
+                }
+                if (editingPlano) {
+                  const index = planosPersonalizados.findIndex((p: any) => p === editingPlano);
+                  const updated = [...planosPersonalizados];
+                  updated[index] = { ...novoPlano };
+                  setPlanosPersonalizados(updated);
+                } else {
+                  setPlanosPersonalizados([...planosPersonalizados, { ...novoPlano }]);
+                }
+                setShowNovoPlanoDialog(false);
+              }}
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            >
+              {editingPlano ? 'Salvar' : 'Criar Plano'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

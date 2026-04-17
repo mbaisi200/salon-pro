@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import NextLink from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,7 +17,7 @@ import {
   Sun, Moon, LayoutDashboard, UserCog, Briefcase, Wallet, ArrowUpRight, ArrowDownRight,
   ChevronLeft, Bell, CreditCard, MapPin, Download, FileSpreadsheet, FileText, Filter,
   Package, ShoppingCart, Percent, Star, History, Save, Printer, Trash, Database,
-  Gift, MessageCircle, Sparkles, Target, Award, Activity, KeyRound, LogIn
+  Gift, MessageCircle, Sparkles, Target, Award, Activity, KeyRound, LogIn, Globe, Link, Copy
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 
@@ -27,6 +28,8 @@ import { useSalonStore } from '@/lib/store';
 import BIDashboard from '@/components/salon/BIDashboard';
 import SeedDataPanel from '@/components/salon/SeedDataPanel';
 import FidelidadePanel from '@/components/salon/FidelidadePanel';
+import ConfigAvancadas from '@/components/salon/ConfigAvancadas';
+import VersionBanner from '@/components/salon/VersionBanner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,7 +46,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -96,6 +99,16 @@ const profissionalSchema = z.object({
   status: z.enum(['ativo', 'inativo']),
   percentualComissao: z.number().min(0).max(100).optional(),
   tipoComissao: z.enum(['percentual', 'fixo_por_servico']).optional(),
+  loginEmail: z.string().email('Email inválido').optional().or(z.literal('')),
+  loginSenha: z.string().optional(),
+  acessoAtivo: z.boolean().default(false),
+  servicosHabilitados: z.array(z.string()).default([]),
+  disponibilidade: z.object({
+    horariosPorDia: z.record(z.object({
+      ativo: z.boolean().default(false),
+      horarios: z.array(z.string()).default([]),
+    })).optional(),
+  }).optional(),
 });
 
 const servicoSchema = z.object({
@@ -113,6 +126,16 @@ const produtoSchema = z.object({
   quantidadeEstoque: z.number().min(0, 'Quantidade deve ser maior ou igual a zero'),
   estoqueMinimo: z.number().min(0, 'Estoque mínimo deve ser maior ou igual a zero'),
   mostrarNoPdv: z.boolean().default(true),
+  ncm: z.string().optional(),
+  cfop: z.string().optional(),
+  cstIcms: z.string().optional(),
+  csosn: z.string().optional(),
+  cstPis: z.string().optional(),
+  cstCofins: z.string().optional(),
+  aliquotaIcms: z.number().optional(),
+  aliquotaPis: z.number().optional(),
+  aliquotaCofins: z.number().optional(),
+  uop: z.string().optional(),
 });
 
 const agendamentoSchema = z.object({
@@ -192,7 +215,7 @@ export default function SalonApp() {
   const {
     user, tenant, isAuthenticated, isExpired, isMaster,
     currentView, sidebarOpen, darkMode, loading,
-    login, logout, setExpired,
+    login, logout, setExpired, setTenant,
     setCurrentView,
     toggleSidebar, setSidebarOpen, setLoading, toggleDarkMode,
     saloes, setSaloes, addSalao, updateSalao, deleteSalao,
@@ -208,6 +231,65 @@ export default function SalonApp() {
   const [loginError, setLoginError] = useState('');
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline'>('offline');
+  const [pessoasActiveTab, setPessoasActiveTab] = useState<'clientes' | 'profissionais'>('clientes');
+  const [tenantConfigTemp, setTenantConfigTemp] = useState<any>({});
+  
+  // Constantes para agendamento online (declaradas antes do useState para evitar hoisting issues)
+  const diasSemana = [
+    { value: '0', label: 'Domingo', short: 'Dom' },
+    { value: '1', label: 'Segunda-feira', short: 'Seg' },
+    { value: '2', label: 'Terça-feira', short: 'Ter' },
+    { value: '3', label: 'Quarta-feira', short: 'Qua' },
+    { value: '4', label: 'Quinta-feira', short: 'Qui' },
+    { value: '5', label: 'Sexta-feira', short: 'Sex' },
+    { value: '6', label: 'Sábado', short: 'Sáb' },
+  ];
+  
+  const configPadraoInicial = {
+    ativo: false,
+    permiteCancelamento: true,
+    antecedenciaMinimaHoras: 2,
+    vagasProfissional: 1,
+    vagasSalao: 999,
+    horariosPorDia: Object.fromEntries(
+      diasSemana.map(d => [d.value, { ativo: true, horarios: [] }])
+    )
+  };
+  const [agendamentoOnlineConfig, setAgendamentoOnlineConfig] = useState<any>(configPadraoInicial);
+  
+  const gerarHorarios = (horaInicio: string, horaFim: string, intervalo: number) => {
+    const horarios: string[] = [];
+    const [hi, mi] = horaInicio.split(':').map(Number);
+    const [hf, mf] = horaFim.split(':').map(Number);
+    
+    let minutosAtual = hi * 60 + mi;
+    const minutosFim = hf * 60 + mf;
+    
+    while (minutosAtual <= minutosFim) {
+      const h = Math.floor(minutosAtual / 60);
+      const m = minutosAtual % 60;
+      horarios.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+      minutosAtual += intervalo;
+    }
+    
+    return horarios;
+  };
+  
+  const updateTenantConfig = (updates: any) => {
+    if (tenant) {
+      setTenant({ ...tenant, ...updates });
+      setTenantConfigTemp({ ...tenantConfigTemp, ...updates });
+    }
+  };
+
+  const saveTenantConfig = async () => {
+    if (!tenant) return;
+    try {
+      await setDoc(doc(db, 'saloes', tenant.id), { ...tenant }, { merge: true });
+    } catch (error) {
+      console.error('Erro ao salvar configurações:', error);
+    }
+  };
   
   // Refs for real-time listeners
   const unsubscribersRef = useRef<(() => void)[]>([]);
@@ -316,7 +398,7 @@ export default function SalonApp() {
   const profissionalForm = useForm<z.infer<typeof profissionalSchema>>({
     resolver: zodResolver(profissionalSchema),
     defaultValues: {
-      nome: '', celular: '', fixo: '', email: '', endereco: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', status: 'ativo'
+      nome: '', celular: '', fixo: '', email: '', endereco: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', status: 'ativo', loginEmail: '', loginSenha: '', acessoAtivo: false, percentualComissao: 0
     },
   });
   
@@ -328,7 +410,7 @@ export default function SalonApp() {
   const agendamentoForm = useForm<z.infer<typeof agendamentoSchema>>({
     resolver: zodResolver(agendamentoSchema),
     defaultValues: {
-      data: '', hora: '', horaFim: '', duracao: 30, clienteNome: '', clienteTelefone: '', servico: '', profissional: '', status: 'Pendente'
+      data: '', hora: '', horaFim: '', duracao: 30, clienteNome: '', clienteTelefone: '', servico: '', profissional: '', status: 'Pendente', valor: 0
     },
   });
 
@@ -366,6 +448,33 @@ export default function SalonApp() {
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // Inicializar config de agendamento online quando tenant mudar
+  useEffect(() => {
+    if (tenant?.agendamentoOnline) {
+      const hp: Record<string, { ativo: boolean; horarios: string[] }> = {};
+      diasSemana.forEach(d => {
+        if (tenant.agendamentoOnline?.horariosPorDia?.[d.value]) {
+          hp[d.value] = tenant.agendamentoOnline.horariosPorDia[d.value];
+        } else {
+          hp[d.value] = { ativo: true, horarios: [] };
+        }
+      });
+      setAgendamentoOnlineConfig({
+        ...tenant.agendamentoOnline,
+        horariosPorDia: hp
+      });
+    } else if (tenant && !tenant.agendamentoOnline) {
+      setAgendamentoOnlineConfig({
+        ativo: false,
+        permiteCancelamento: true,
+        antecedenciaMinimaHoras: 2,
+        horariosPorDia: Object.fromEntries(
+          diasSemana.map(d => [d.value, { ativo: true, horarios: [] }])
+        )
+      });
+    }
+  }, [tenant?.id]);
   
   // =====================================
   // VERIFICAR CONEXÃO COM FIREBASE
@@ -673,8 +782,10 @@ export default function SalonApp() {
     if (!tenant) return;
     
     try {
+      const { loginSenha, ...rest } = data;
+      
       const profissionalData = {
-        ...data,
+        ...rest,
         nome: toUpper(data.nome),
         endereco: toUpper(data.endereco || ''),
         numero: toUpper(data.numero || ''),
@@ -682,9 +793,14 @@ export default function SalonApp() {
         cidade: toUpper(data.cidade || ''),
         estado: toUpper(data.estado || ''),
         email: toLower(data.email || ''),
+        loginEmail: toLower(data.loginEmail || ''),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+      
+      if (loginSenha) {
+        profissionalData.loginSenha = loginSenha;
+      }
       
       if (editingItem) {
         await setDoc(doc(db, 'saloes', tenant.id, 'profissionais', editingItem.id), profissionalData, { merge: true });
@@ -783,13 +899,33 @@ export default function SalonApp() {
       return;
     }
     
-    // Validar se a data é anterior à data atual (apenas para novos agendamentos)
+    // Validar data e hora retroativa
+    const now = new Date();
+    const [horaNow, minNow] = [now.getHours(), now.getMinutes()];
+    const nowEmMinutos = horaNow * 60 + minNow;
+    
     const selectedDate = parseISO(data.data);
     const today = startOfDay(new Date());
     
-    if (!editingItem && isBefore(selectedDate, today)) {
-      alert('Não é possível agendar com datas anteriores à atual.');
-      return;
+    // Verificar se a data é hoje
+    const isToday = format(selectedDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
+    
+    if (!editingItem) {
+      if (isBefore(selectedDate, today)) {
+        alert('Não é possível agendar com datas anteriores à hoje.');
+        return;
+      }
+      
+      // Se for hoje, verificar se a hora já passou
+      if (isToday) {
+        const [hAg, mAg] = data.hora.split(':').map(Number);
+        const horaAgendamentoEmMinutos = hAg * 60 + mAg;
+        
+        if (horaAgendamentoEmMinutos <= nowEmMinutos) {
+          alert('Não é possível agendar com horário já transcorrido.');
+          return;
+        }
+      }
     }
     
     try {
@@ -809,33 +945,76 @@ export default function SalonApp() {
       
       const horaFim = calcularHoraFim(data.hora, duracaoServico);
       
-      // Verificar conflitos de horário
-      const verificarConflito = (): boolean => {
+      // Verificar conflitos de horário (convertendo para uppercase para comparar)
+      const profUpper = toUpper(data.profissional);
+      const dataUpper = data.data;
+      const horaUpper = toUpper(data.hora);
+      const horaFimUpper = toUpper(horaFim);
+      
+      const verificarConflito = (): { temConflito: boolean; agendamentoConflito?: any } => {
         const agendamentosDoDia = agendamentos.filter((a: any) => 
-          a.data === data.data && 
-          a.profissional === data.profissional &&
+          toUpper(a.data) === dataUpper && 
+          toUpper(a.profissional) === profUpper &&
           a.id !== editingItem?.id &&
           a.status !== 'Cancelado'
         );
         
         for (const ag of agendamentosDoDia) {
           const agHoraInicio = ag.hora;
-          const agHoraFim = ag.horaFim || calcularHoraFim(ag.hora, ag.duracao || 30);
+          const agDuracao = ag.duracao || 30;
+          const agHoraFim = ag.horaFim || calcularHoraFim(ag.hora, agDuracao);
+          
+          // Converter horas para minutos para comparar
+          const [h1, m1] = horaUpper.split(':').map(Number);
+          const [h2, m2] = horaFimUpper.split(':').map(Number);
+          const [h3, m3] = agHoraInicio.split(':').map(Number);
+          const [h4, m4] = agHoraFim.split(':').map(Number);
+          
+          const inicioNovo = h1 * 60 + m1;
+          const fimNovo = h2 * 60 + m2;
+          const inicioAg = h3 * 60 + m3;
+          const fimAg = h4 * 60 + m4;
           
           // Verificar se há sobreposição
-          if (
-            (data.hora >= agHoraInicio && data.hora < agHoraFim) ||
-            (horaFim > agHoraInicio && horaFim <= agHoraFim) ||
-            (data.hora <= agHoraInicio && horaFim >= agHoraFim)
-          ) {
-            return true;
+          const haConflito = !(fimNovo <= inicioAg || inicioNovo >= fimAg);
+          
+          if (haConflito) {
+            return { temConflito: true, agendamentoConflito: ag };
           }
         }
-        return false;
+        return { temConflito: false };
       };
       
-      if (verificarConflito()) {
-        if (!confirm(`ATENÇÃO: Já existe um agendamento para ${data.profissional} neste horário!\n\nDeseja continuar mesmo assim?`)) {
+      const resultado = verificarConflito();
+      if (resultado.temConflito) {
+        const ag = resultado.agendamentoConflito;
+        alert(`CONFLITO DE HORÁRIO!\n\nJá existe um agendamento para ${profUpper}:\n• Cliente: ${ag.clienteNome}\n• Horário: ${ag.hora} - ${ag.horaFim || '?'}\n• Serviço: ${ag.servico}\n\nEscolha outro horário.`);
+        return;
+      }
+      
+      // Verificar disponibilidade do profissional
+      const profissionalData = profissionais.find((p: any) => toUpper(p.nome) === profUpper);
+      if (profissionalData?.disponibilidade?.horariosPorDia) {
+        const diaSemana = format(parseISO(data.data), 'e');
+        const disp = profissionalData.disponibilidade.horariosPorDia[diaSemana];
+        
+        if (disp && disp.ativo) {
+          const horariosDisponiveis = disp.horarios || [];
+          const horaMinutos = data.hora.split(':').map(Number);
+          const horaInicioMin = horaMinutos[0] * 60 + horaMinutos[1];
+          const horaFimMin = horaInicioMin + duracaoServico;
+          
+          const horaInicioDisponivel = horariosDisponiveis.find((h: string) => {
+            const [hh, mm] = h.split(':').map(Number);
+            return hh * 60 + mm === horaInicioMin;
+          });
+          
+          if (!horaInicioDisponivel) {
+            alert(`HORÁRIO INDISPONÍVEL!\n\nO profissional ${profUpper} não atende às ${data.hora} neste dia.\n\nHorários disponíveis: ${horariosDisponiveis[0] || '--:--'} - ${horariosDisponiveis[horariosDisponiveis.length - 1] || '--:--'}`);
+            return;
+          }
+        } else if (disp && !disp.ativo) {
+          alert(`PROFISSIONAL INDISPONÍVEL!\n\nO profissional ${profUpper} não atende neste dia da semana.\n\nEscolha outro profissional ou outro dia.`);
           return;
         }
       }
@@ -1598,6 +1777,15 @@ export default function SalonApp() {
   // RENDER CALENDÁRIO
   // =====================================
   const renderCalendar = useCallback(() => {
+    const config = agendamentoOnlineConfig;
+    const vagasSalao = config?.vagasSalao || 5;
+    
+    const getTotalDia = (dateStr: string) => {
+      return agendamentos.filter(a => 
+        a.data === dateStr && a.status !== 'Cancelado'
+      ).length;
+    };
+    
     const year = currentCalendarDate.getFullYear();
     const month = currentCalendarDate.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
@@ -1608,23 +1796,24 @@ export default function SalonApp() {
     
     const days = [];
     
-    // Dias vazios no início
     for (let i = 0; i < firstDay; i++) {
       days.push(<div key={`empty-${i}`} className="h-24 bg-gray-50 dark:bg-gray-800/50 border-r border-b border-gray-200 dark:border-gray-700"></div>);
     }
     
-    // Dias do mês
     for (let d = 1; d <= lastDate; d++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const dayAgendamentos = agendamentos.filter(a => a.data === dateStr);
       const isToday = dateStr === todayStr;
+      const total = getTotalDia(dateStr);
+      const lotado = total >= vagasSalao;
       
       days.push(
         <div
           key={d}
           className={cn(
-            "h-24 border-r border-b border-gray-200 dark:border-gray-700 p-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors",
-            isToday && "bg-blue-50 dark:bg-blue-900/20"
+            "h-24 border-r border-b border-gray-200 dark:border-gray-700 p-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors relative",
+            isToday && "bg-blue-50 dark:bg-blue-900/20",
+            lotado && config?.ativo && "bg-red-50 dark:bg-red-950/20"
           )}
           onClick={() => {
             setEditingItem(null);
@@ -1636,6 +1825,18 @@ export default function SalonApp() {
             "text-xs font-medium block text-right mb-1",
             isToday ? "text-blue-600 dark:text-blue-400" : "text-gray-400"
           )}>{d}</span>
+          
+          {config?.ativo && (
+            <div className={cn(
+              "absolute top-1 right-1 text-[10px] px-2 py-0.5 rounded-full font-bold",
+              lotado ? "bg-red-500 text-white" :
+              total > 0 ? "bg-green-500 text-white" :
+              "hidden"
+            )}>
+              {total}/{vagasSalao}
+            </div>
+          )}
+          
           <div className="space-y-0.5 overflow-hidden">
             {dayAgendamentos.slice(0, 3).map(a => (
               <div
@@ -1675,7 +1876,7 @@ export default function SalonApp() {
     }
     
     return days;
-  }, [currentCalendarDate, agendamentos, agendamentoForm]);
+  }, [currentCalendarDate, agendamentos, agendamentoForm, agendamentoOnlineConfig]);
   
   // =====================================
   // HELPERS
@@ -1720,6 +1921,10 @@ export default function SalonApp() {
           cidade: item.cidade || '',
           estado: item.estado || '',
           cep: item.cep || '',
+          loginEmail: item.loginEmail || '',
+          loginSenha: '',
+          acessoAtivo: item.acessoAtivo || false,
+          servicosHabilitados: item.servicosHabilitados || [],
         });
         setShowProfissionalDialog(true);
         break;
@@ -1976,8 +2181,7 @@ export default function SalonApp() {
       { id: 'seed', label: 'Popular Dados', icon: Database },
     ] : [
       { id: 'agenda', label: 'Agenda', icon: Calendar },
-      { id: 'clientes', label: 'Clientes', icon: Users },
-      { id: 'profissionais', label: 'Profissionais', icon: UserCheck },
+      { id: 'pessoas', label: 'Pessoas', icon: Users },
       { id: 'servicos', label: 'Serviços', icon: Scissors },
       { id: 'produtos', label: 'Estoque', icon: Package },
       { id: 'pdv', label: 'Vendas (PDV)', icon: ShoppingCart },
@@ -1985,22 +2189,26 @@ export default function SalonApp() {
       { id: 'comissoes', label: 'Comissões', icon: Percent },
       { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
       { id: 'fidelidade', label: 'Fidelidade', icon: Gift },
+      { id: 'agendamentoOnline', label: 'Agend. Online', icon: Globe },
+      { id: 'configuracoes', label: 'Configurações', icon: Settings },
+      { id: 'nfe', label: 'Notas Fiscais', icon: FileText },
+      { id: 'manual', label: 'Manual/NFC-e', icon: FileText },
       { id: 'bi', label: 'Business Intel.', icon: BarChart3 },
     ];
     
     return (
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0 flex flex-col shadow-xl",
+        "fixed inset-y-0 left-0 z-50 w-56 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0 flex flex-col shadow-xl",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex items-center justify-between h-20 px-4 border-b border-sidebar-border shrink-0 gradient-primary">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center shadow-lg">
-              <Scissors className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between h-16 px-3 border-b border-sidebar-border shrink-0 gradient-primary">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center shadow-lg">
+              <Scissors className="w-4 h-4 text-white" />
             </div>
-            <div>
-              <span className="font-bold text-white text-lg">SalonPro</span>
-              <p className="text-[10px] text-white/70">{tenant?.nome || 'Sistema'}</p>
+            <div className="min-w-0">
+              <span className="font-bold text-white text-base truncate block">SalonPro</span>
+              <p className="text-[10px] text-white/70 truncate">{tenant?.nome || 'Sistema'}</p>
             </div>
           </div>
           <Button variant="ghost" size="icon" className="lg:hidden text-white hover:bg-white/20" onClick={() => setSidebarOpen(false)}>
@@ -2008,58 +2216,97 @@ export default function SalonApp() {
           </Button>
         </div>
         
-        <ScrollArea className="flex-1 min-h-0 py-4">
-          <nav className="px-3 space-y-1">
-            {menuItems.map((item) => (
-              <Button
-                key={item.id}
-                variant="ghost"
-                className={cn(
-                  "w-full justify-start gap-3 h-12 px-4 rounded-xl transition-all duration-200",
-                  currentView === item.id 
-                    ? "bg-primary/10 text-primary font-medium shadow-sm" 
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-                onClick={() => setCurrentView(item.id as any)}
-              >
-                <div className={cn(
-                  "p-2 rounded-lg",
-                  currentView === item.id ? "bg-primary text-white" : "bg-muted"
-                )}>
-                  <item.icon className="w-4 h-4" />
-                </div>
-                {item.label}
-              </Button>
-            ))}
+        <ScrollArea className="flex-1 min-h-0 py-3">
+          <nav className="px-2 space-y-0.5">
+            {menuItems.map((item) => {
+              const isActive = item.id === 'pessoas'
+                ? currentView === 'pessoas' || currentView === 'clientes' || currentView === 'profissionais'
+                : currentView === item.id;
+
+              if (item.id === 'nfe') {
+                return (
+                  <NextLink key={item.id} href="/nfe" className={cn(
+                    "block w-full",
+                    isActive ? "bg-primary/10 text-primary font-medium shadow-sm" : ""
+                  )}>
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "w-full justify-start gap-2.5 h-11 px-3 rounded-lg transition-all duration-200 text-sm",
+                        isActive
+                          ? "bg-primary/10 text-primary font-medium shadow-sm"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <div className={cn(
+                        "p-1.5 rounded-md",
+                        isActive ? "bg-primary text-white" : "bg-muted"
+                      )}>
+                        <item.icon className="w-4 h-4" />
+                      </div>
+                      <span className="truncate">{item.label}</span>
+                    </Button>
+                  </NextLink>
+                );
+              }
+
+              return (
+                <Button
+                  key={item.id}
+                  variant="ghost"
+                  className={cn(
+                    "w-full justify-start gap-2.5 h-11 px-3 rounded-lg transition-all duration-200 text-sm",
+                    isActive
+                      ? "bg-primary/10 text-primary font-medium shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                  onClick={() => {
+                    if (item.id === 'pessoas') {
+                      setCurrentView('pessoas');
+                    } else {
+                      setCurrentView(item.id as any);
+                    }
+                  }}
+                >
+                  <div className={cn(
+                    "p-1.5 rounded-md",
+                    isActive ? "bg-primary text-white" : "bg-muted"
+                  )}>
+                    <item.icon className="w-4 h-4" />
+                  </div>
+                  <span className="truncate">{item.label}</span>
+                </Button>
+              );
+            })}
           </nav>
         </ScrollArea>
         
-        <div className="shrink-0 p-4 border-t border-sidebar-border bg-muted/30">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Preferências</span>
-            <Button variant="ghost" size="icon" onClick={toggleDarkMode} className="h-8 w-8 rounded-lg hover:bg-muted">
-              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        <div className="shrink-0 p-3 border-t border-sidebar-border bg-muted/30">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Preferências</span>
+            <Button variant="ghost" size="icon" onClick={toggleDarkMode} className="h-7 w-7 rounded-md hover:bg-muted">
+              {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </Button>
           </div>
-          <div className="flex items-center gap-2 mb-4 p-3 rounded-xl bg-muted/50">
+          <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-muted/50">
             <div className={cn(
-              "w-2.5 h-2.5 rounded-full ring-2",
+              "w-2 h-2 rounded-full ring-1",
               connectionStatus === 'online' ? "bg-green-500 ring-green-500/30" : "bg-red-500 ring-red-500/30 animate-pulse"
             )} />
-            <span className="text-xs text-muted-foreground font-medium">
-              {connectionStatus === 'online' ? 'Conectado' : 'Desconectado'}
+            <span className="text-[10px] text-muted-foreground font-medium">
+              {connectionStatus === 'online' ? 'Online' : 'Offline'}
             </span>
           </div>
           <Button 
             variant="ghost" 
-            className="w-full justify-start mb-2 h-11 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="w-full justify-start mb-2 h-10 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground text-sm"
             onClick={() => setShowAlterarSenha(true)}
           >
-            <Settings className="w-4 h-4 mr-3" />
-            Configurações
+            <Settings className="w-3.5 h-3.5 mr-2" />
+            Alterar Senha
           </Button>
-          <Button variant="outline" className="w-full h-11 rounded-xl" onClick={handleLogout}>
-            <LogOut className="w-4 h-4 mr-2" />
+          <Button variant="outline" className="w-full h-10 rounded-lg text-sm" onClick={handleLogout}>
+            <LogOut className="w-3.5 h-3.5 mr-2" />
             Sair
           </Button>
         </div>
@@ -2222,9 +2469,22 @@ export default function SalonApp() {
   // RENDER AGENDA
   // =====================================
   const renderAgenda = () => {
+    const config = agendamentoOnlineConfig;
+    const vagasSalao = config?.vagasSalao || 5;
+    
+    const getTotalDia = (dateStr: string) => {
+      return agendamentos.filter(a => 
+        a.data === dateStr && a.status !== 'Cancelado'
+      ).length;
+    };
+    
+    const hoje = format(new Date(), 'yyyy-MM-dd');
+    const totalHoje = getTotalDia(hoje);
+    const lotado = totalHoje >= vagasSalao;
+    
     return (
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => setCurrentCalendarDate(subMonths(currentCalendarDate, 1))}>
               <ChevronLeft className="w-4 h-4" />
@@ -2236,14 +2496,32 @@ export default function SalonApp() {
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          <Button onClick={() => {
-            setEditingItem(null);
-            agendamentoForm.reset({ data: format(new Date(), 'yyyy-MM-dd'), hora: '', clienteNome: '', clienteTelefone: '', servico: '', profissional: '', status: 'Pendente' });
-            setShowAgendamentoDialog(true);
-          }}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo
-          </Button>
+          
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg border",
+              lotado 
+                ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800" 
+                : "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
+            )}>
+              <Users className={cn("w-5 h-5", lotado ? "text-red-600" : "text-green-600")} />
+              <span className={cn(
+                "font-medium",
+                lotado ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400"
+              )}>
+                Hoje: <strong>{totalHoje}</strong> de <strong>{vagasSalao}</strong> cadeiras
+              </span>
+            </div>
+            
+            <Button onClick={() => {
+              setEditingItem(null);
+              agendamentoForm.reset({ data: format(new Date(), 'yyyy-MM-dd'), hora: '', clienteNome: '', clienteTelefone: '', servico: '', profissional: '', status: 'Pendente' });
+              setShowAgendamentoDialog(true);
+            }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Novo
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="grid grid-cols-7 border-b">
@@ -2261,6 +2539,206 @@ export default function SalonApp() {
     );
   };
   
+  // =====================================
+  // RENDER PESSOAS (Clientes + Profissionais com abas)
+  // =====================================
+  const renderPessoas = () => {
+    return (
+      <div className="space-y-4">
+        <Tabs value={pessoasActiveTab} onValueChange={(v) => setPessoasActiveTab(v as any)} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <TabsList className="h-auto p-0.5 bg-muted rounded-lg">
+              <TabsTrigger 
+                value="clientes" 
+                className="flex items-center gap-2 px-4 py-2 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                <Users className="w-4 h-4" />
+                Clientes
+                <Badge variant="secondary" className="ml-1 h-5 text-xs">{clientes.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="profissionais" 
+                className="flex items-center gap-2 px-4 py-2 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                <UserCheck className="w-4 h-4" />
+                Profissionais
+                <Badge variant="secondary" className="ml-1 h-5 text-xs">{profissionais.length}</Badge>
+              </TabsTrigger>
+            </TabsList>
+            <Button 
+              onClick={() => {
+                setEditingItem(null);
+                if (pessoasActiveTab === 'clientes') {
+                  clienteForm.reset({ nome: '', telefone: '', email: '', endereco: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', observacoes: '' });
+                  setShowClienteDialog(true);
+                } else {
+                  profissionalForm.reset({ nome: '', celular: '', fixo: '', email: '', endereco: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', status: 'ativo', loginEmail: '', loginSenha: '', acessoAtivo: false, servicosHabilitados: [] });
+                  setShowProfissionalDialog(true);
+                }
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Novo {pessoasActiveTab === 'clientes' ? 'Cliente' : 'Profissional'}
+            </Button>
+          </div>
+
+          <TabsContent value="clientes" className="m-0">
+            <Card>
+              <CardContent className="p-0">
+                <div className="mb-4 p-4 border-b">
+                  <div className="relative max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nome, telefone, email ou cidade..."
+                      value={buscaCliente}
+                      onChange={(e) => setBuscaCliente(e.target.value)}
+                      className="pl-10"
+                    />
+                    {buscaCliente && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                        onClick={() => setBuscaCliente('')}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-3 text-muted-foreground font-medium">Nome</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Telefone</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Email</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Cidade/UF</th>
+                        <th className="text-right p-3 text-muted-foreground font-medium">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientes.filter((c: any) => {
+                        if (!buscaCliente) return true;
+                        const termo = buscaCliente.toLowerCase();
+                        return c.nome?.toLowerCase().includes(termo) || c.telefone?.includes(termo) || c.email?.toLowerCase().includes(termo) || c.cidade?.toLowerCase().includes(termo);
+                      }).length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="text-center p-8 text-muted-foreground">
+                            {buscaCliente ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
+                          </td>
+                        </tr>
+                      ) : (
+                        clientes.filter((c: any) => {
+                          if (!buscaCliente) return true;
+                          const termo = buscaCliente.toLowerCase();
+                          return c.nome?.toLowerCase().includes(termo) || c.telefone?.includes(termo) || c.email?.toLowerCase().includes(termo) || c.cidade?.toLowerCase().includes(termo);
+                        }).map((cliente: any) => (
+                          <tr key={cliente.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
+                            <td className="p-3 font-medium">
+                              {cliente.nome}
+                              {cliente.observacoes && (
+                                <span className="block text-xs text-muted-foreground mt-1 truncate max-w-[200px]">
+                                  {cliente.observacoes}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-muted-foreground">{cliente.telefone || '-'}</td>
+                            <td className="p-3 text-muted-foreground">{cliente.email || '-'}</td>
+                            <td className="p-3 text-muted-foreground">
+                              {cliente.cidade || '-'}{cliente.estado ? `/${cliente.estado}` : ''}
+                            </td>
+                            <td className="p-3 text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  title="Ver histórico"
+                                  onClick={() => {
+                                    setClienteSelecionado(cliente);
+                                    setShowClienteHistorico(true);
+                                  }}
+                                >
+                                  <Eye className="w-4 h-4 text-blue-500" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => openEditDialog('cliente', cliente)}>
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-red-500" onClick={() => setDeleteConfirm({ type: 'cliente', id: cliente.id })}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="profissionais" className="m-0">
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-3 text-muted-foreground font-medium">Nome</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Celular</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Fixo</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Status</th>
+                        <th className="text-right p-3 text-muted-foreground font-medium">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {profissionais.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="text-center p-8 text-muted-foreground">
+                            Nenhum profissional cadastrado
+                          </td>
+                        </tr>
+                      ) : (
+                        profissionais.map((prof: any) => (
+                          <tr key={prof.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
+                            <td className="p-3 font-medium">{prof.nome}</td>
+                            <td className="p-3 text-muted-foreground">{prof.celular || '-'}</td>
+                            <td className="p-3 text-muted-foreground">{prof.fixo || '-'}</td>
+                            <td className="p-3">
+                              <span className={cn(
+                                "px-2 py-1 rounded-full text-xs font-medium",
+                                prof.status === 'ativo' ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                              )}>
+                                {prof.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => openEditDialog('profissional', prof)}>
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-red-500" onClick={() => setDeleteConfirm({ type: 'profissional', id: prof.id })}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    );
+  };
+
   // =====================================
   // RENDER CLIENTES
   // =====================================
@@ -2390,7 +2868,7 @@ export default function SalonApp() {
           <CardTitle>Profissionais</CardTitle>
           <Button onClick={() => {
             setEditingItem(null);
-            profissionalForm.reset({ nome: '', celular: '', fixo: '', email: '', endereco: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', status: 'ativo' });
+            profissionalForm.reset({ nome: '', celular: '', fixo: '', email: '', endereco: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', status: 'ativo', loginEmail: '', loginSenha: '', acessoAtivo: false, servicosHabilitados: [] });
             setShowProfissionalDialog(true);
           }}>
             <Plus className="w-4 h-4 mr-2" />
@@ -2406,13 +2884,14 @@ export default function SalonApp() {
                   <th className="text-left p-3 text-muted-foreground font-medium">Celular</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Fixo</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Status</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Acesso</th>
                   <th className="text-right p-3 text-muted-foreground font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {profissionais.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center p-8 text-muted-foreground">
+                    <td colSpan={6} className="text-center p-8 text-muted-foreground">
                       Nenhum profissional cadastrado
                     </td>
                   </tr>
@@ -2429,6 +2908,19 @@ export default function SalonApp() {
                         )}>
                           {prof.status === 'ativo' ? 'Ativo' : 'Inativo'}
                         </span>
+                      </td>
+                      <td className="p-3">
+                        {prof.loginEmail ? (
+                          <span className={cn(
+                            "px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit",
+                            prof.acessoAtivo ? "bg-purple-100 text-purple-800" : "bg-gray-100 text-gray-500"
+                          )}>
+                            <KeyRound className="w-3 h-3" />
+                            {prof.acessoAtivo ? 'Login Ativo' : 'Login Bloqueado'}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">Sem login</span>
+                        )}
                       </td>
                       <td className="p-3 text-right">
                         <div className="flex justify-end gap-2">
@@ -2902,7 +3394,7 @@ export default function SalonApp() {
             </Button>
             <Button onClick={() => {
               setEditingItem(null);
-              produtoForm.reset({ nome: '', descricao: '', precoVenda: 0, precoCusto: 0, quantidadeEstoque: 0, estoqueMinimo: 0 });
+              produtoForm.reset({ nome: '', descricao: '', precoVenda: 0, precoCusto: 0, quantidadeEstoque: 0, estoqueMinimo: 0, ncm: '', cfop: '', cstIcms: '', csosn: '', cstPis: '', cstCofins: '', aliquotaIcms: 0, aliquotaPis: 0, aliquotaCofins: 0, uop: '' });
               setShowProdutoDialog(true);
             }}>
               <Plus className="w-4 h-4 mr-2" />
@@ -4355,6 +4847,538 @@ export default function SalonApp() {
   };
 
   // =====================================
+  // RENDER AGENDAMENTO ONLINE
+  // =====================================
+  const renderAgendamentoOnline = () => {
+    if (!agendamentoOnlineConfig) {
+      return <div className="p-8 text-center">Carregando...</div>;
+    }
+    const config = agendamentoOnlineConfig;
+    const setConfig = setAgendamentoOnlineConfig;
+
+    const aplicarTemplate = (template: string) => {
+      const novosHorarios: Record<string, { ativo: boolean; horarios: string[] }> = {};
+      
+      switch (template) {
+        case 'todos_dias':
+          diasSemana.forEach(dia => {
+            novosHorarios[dia.value] = { ativo: true, horarios: gerarHorarios('08:00', '18:00', 30) };
+          });
+          break;
+        case 'dias_uteis':
+          ['1', '2', '3', '4', '5'].forEach(dia => {
+            novosHorarios[dia] = { ativo: true, horarios: gerarHorarios('08:00', '18:00', 30) };
+          });
+          ['0', '6'].forEach(dia => {
+            novosHorarios[dia] = { ativo: false, horarios: [] };
+          });
+          break;
+        case 'estendido':
+          diasSemana.forEach(dia => {
+            if (['0', '6'].includes(dia.value)) {
+              novosHorarios[dia.value] = { ativo: true, horarios: gerarHorarios('09:00', '14:00', 30) };
+            } else {
+              novosHorarios[dia.value] = { ativo: true, horarios: gerarHorarios('08:00', '20:00', 30) };
+            }
+          });
+          break;
+        case 'feriado':
+          diasSemana.forEach(dia => {
+            novosHorarios[dia.value] = { ativo: false, horarios: [] };
+          });
+          break;
+      }
+      
+      setConfig({ ...config, horariosPorDia: { ...config.horariosPorDia, ...novosHorarios } });
+    };
+
+    const copiarHorarios = (deDia: string, paraDias: string[]) => {
+      const horariosOrigem = config.horariosPorDia[deDia]?.horarios || [];
+      const novosHorarios = { ...config.horariosPorDia };
+      
+      paraDias.forEach(dia => {
+        if (dia !== deDia) {
+          novosHorarios[dia] = { ...novosHorarios[dia], horarios: [...horariosOrigem] };
+        }
+      });
+      
+      setConfig({ ...config, horariosPorDia: novosHorarios });
+    };
+
+    const atualizarDia = (dia: string, updates: Partial<{ ativo: boolean; horarios: string[] }>) => {
+      setConfig({
+        ...config,
+        horariosPorDia: {
+          ...config.horariosPorDia,
+          [dia]: { ...config.horariosPorDia[dia], ...updates }
+        }
+      });
+    };
+
+    const adicionarHorario = (dia: string, horario: string) => {
+      const horarios = config.horariosPorDia[dia]?.horarios || [];
+      if (!horarios.includes(horario)) {
+        atualizarDia(dia, { horarios: [...horarios, horario].sort() });
+      }
+    };
+
+    const removerHorario = (dia: string, horario: string) => {
+      const horarios = config.horariosPorDia[dia]?.horarios || [];
+      atualizarDia(dia, { horarios: horarios.filter(h => h !== horario) });
+    };
+
+    const salvarConfig = () => {
+      updateTenantConfig({ agendamentoOnline: config });
+    };
+
+    const toggleDia = (dia: string) => {
+      const atual = config.horariosPorDia[dia]?.ativo || false;
+      atualizarDia(dia, { ativo: !atual });
+    };
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
+                  <Globe className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <CardTitle>Agendamento Online</CardTitle>
+                  <CardDescription>
+                    Configure os horários disponíveis para seus clientes
+                  </CardDescription>
+                </div>
+              </div>
+              <Switch
+                checked={config.ativo}
+                onCheckedChange={(checked) => setConfig({ ...config, ativo: checked })}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {config.ativo && (
+              <>
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Link className="w-4 h-4 text-green-600" />
+                    <span className="font-medium text-green-700 dark:text-green-400">Link para seus clientes:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/agendar/${tenant?.id}`}
+                      className="bg-white"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${typeof window !== 'undefined' ? window.location.origin : ''}/agendar/${tenant?.id}`);
+                      }}
+                    >
+                      Copiar Link
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Users className="w-5 h-5 text-purple-600" />
+                    <span className="font-semibold text-purple-700 dark:text-purple-400">Número de Cadeiras</span>
+                  </div>
+                  <p className="text-sm text-purple-600 mb-4">
+                    Quantas pessoas podem ser atendidas simultaneamente no salão?
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={config.vagasSalao || 5}
+                      onChange={(e) => setConfig({ ...config, vagasSalao: parseInt(e.target.value) || 5 })}
+                      className="bg-white w-24 text-center text-lg font-bold"
+                    />
+                    <div className="text-sm text-purple-700 dark:text-purple-300">
+                      <p>clientes ao mesmo tempo</p>
+                      <p className="text-xs text-purple-500">por horário disponível</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Horários por Dia</h3>
+                    <div className="flex gap-2 flex-wrap">
+                      <Select onValueChange={(v) => aplicarTemplate(v)}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Aplicar modelo..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos_dias">Todos os dias (08h-18h)</SelectItem>
+                          <SelectItem value="dias_uteis">Seg a Sex (08h-18h)</SelectItem>
+                          <SelectItem value="estendido">Horário estendido</SelectItem>
+                          <SelectItem value="feriado">Fechado todos os dias</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button variant="outline" size="sm" onClick={salvarConfig}>
+                        <Save className="w-4 h-4 mr-2" />
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {diasSemana.map((dia) => {
+                      const diaConfig = config.horariosPorDia[dia.value] || { ativo: true, horarios: [] };
+                      const temHorarios = diaConfig.horarios.length > 0;
+
+                      return (
+                        <Card key={dia.value} className={cn(
+                          "overflow-hidden",
+                          !diaConfig.ativo && "opacity-60"
+                        )}>
+                          <div className={cn(
+                            "p-3 border-b flex items-center justify-between",
+                            diaConfig.ativo ? "bg-green-50 dark:bg-green-900/20" : "bg-muted"
+                          )}>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={diaConfig.ativo}
+                                onCheckedChange={() => toggleDia(dia.value)}
+                                className="scale-90"
+                              />
+                              <span className="font-medium text-sm">{dia.short}</span>
+                            </div>
+                            {temHorarios && (
+                              <Badge variant="outline" className="text-xs">
+                                {diaConfig.horarios.length} horários
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {diaConfig.ativo && (
+                            <CardContent className="p-3 space-y-3">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Adicionar horário</Label>
+                                <div className="flex gap-2 mt-1">
+                                  <Input
+                                    type="time"
+                                    className="h-8 text-sm"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        adicionarHorario(dia.value, (e.target as HTMLInputElement).value);
+                                        (e.target as HTMLInputElement).value = '';
+                                      }
+                                    }}
+                                  />
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="h-8 px-2"
+                                    onClick={(e) => {
+                                      const input = (e.currentTarget.parentElement?.querySelector('input') as HTMLInputElement);
+                                      if (input?.value) {
+                                        adicionarHorario(dia.value, input.value);
+                                        input.value = '';
+                                      }
+                                    }}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Horários configurados</Label>
+                                <ScrollArea className="h-[120px] mt-1">
+                                  <div className="flex flex-wrap gap-1">
+                                    {diaConfig.horarios.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground py-2">
+                                        Nenhum horário. Adicione acima.
+                                      </p>
+                                    ) : (
+                                      diaConfig.horarios.map((horario) => (
+                                        <Badge
+                                          key={horario}
+                                          variant="secondary"
+                                          className="cursor-pointer hover:bg-destructive/10 hover:text-destructive"
+                                          onClick={() => removerHorario(dia.value, horario)}
+                                        >
+                                          {horario}
+                                          <X className="w-3 h-3 ml-1" />
+                                        </Badge>
+                                      ))
+                                    )}
+                                  </div>
+                                </ScrollArea>
+                              </div>
+                            </CardContent>
+                          )}
+                        </Card>
+                      );
+                    })}
+                  </div>
+
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Copy className="w-4 h-4 text-blue-600" />
+                      <span className="font-medium text-blue-700 dark:text-blue-400">Copiar horários entre dias</span>
+                    </div>
+                    <p className="text-sm text-blue-600 mb-3">
+                      Selecione um dia de origem para copiar seus horários para outros dias
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {diasSemana.map((dia) => {
+                        const horariosOrigem = config.horariosPorDia[dia.value]?.horarios || [];
+                        return (
+                          <div key={dia.value} className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                const outrosDias = diasSemana
+                                  .filter(d => d.value !== dia.value)
+                                  .map(d => d.value);
+                                copiarHorarios(dia.value, outrosDias);
+                              }}
+                              disabled={horariosOrigem.length === 0}
+                            >
+                              {dia.short}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center justify-between p-4 rounded-lg border">
+                    <div>
+                      <Label className="text-base">Permitir cancelamento</Label>
+                      <p className="text-sm text-muted-foreground">Clientes podem cancelar</p>
+                    </div>
+                    <Switch
+                      checked={config.permiteCancelamento}
+                      onCheckedChange={(checked) => setConfig({ ...config, permiteCancelamento: checked })}
+                    />
+                  </div>
+
+                  <div className="space-y-2 p-4 rounded-lg border">
+                    <Label>Antecedência mínima</Label>
+                    <Select
+                      value={String(config.antecedenciaMinimaHoras)}
+                      onValueChange={(v) => setConfig({ ...config, antecedenciaMinimaHoras: parseInt(v) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 hora</SelectItem>
+                        <SelectItem value="2">2 horas</SelectItem>
+                        <SelectItem value="4">4 horas</SelectItem>
+                        <SelectItem value="12">12 horas</SelectItem>
+                        <SelectItem value="24">24 horas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="p-4 rounded-lg border bg-muted/30">
+                    <Label className="text-base mb-2 block">Resumo</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {Object.values(config.horariosPorDia).filter(d => d.ativo).length} dias ativos •{' '}
+                      {Object.values(config.horariosPorDia).reduce((acc, d) => acc + d.horarios.length, 0)} horários
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {!config.ativo && (
+              <div className="text-center py-12">
+                <Globe className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Agendamento Online Desativado</h3>
+                <p className="text-muted-foreground mb-4">
+                  Ative para permitir que seus clientes agendem pela internet
+                </p>
+                <Button onClick={() => setConfig({ ...config, ativo: true })}>
+                  <Globe className="w-4 h-4 mr-2" />
+                  Ativar Agendamento Online
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  // =====================================
+  // RENDER CONFIGURAÇÕES
+  // =====================================
+  const renderConfiguracoes = () => {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              Configurações do Salão
+            </CardTitle>
+            <CardDescription>
+              Gerencie as informações e preferências do seu salão
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Nome do Salão</Label>
+                <Input
+                  value={tenant?.nome || ''}
+                  onChange={(e) => updateTenantConfig({ nome: e.target.value.toUpperCase() })}
+                  onBlur={() => saveTenantConfig()}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Usuario de Acesso</Label>
+                <Input
+                  value={tenant?.usuario || ''}
+                  onChange={(e) => updateTenantConfig({ usuario: e.target.value })}
+                  onBlur={() => saveTenantConfig()}
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="font-medium mb-4">Informações de Contato</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input
+                    value={tenant?.telefone || ''}
+                    onChange={(e) => updateTenantConfig({ telefone: maskPhone(e.target.value) })}
+                    onBlur={() => saveTenantConfig()}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={tenant?.email || ''}
+                    onChange={(e) => updateTenantConfig({ email: e.target.value })}
+                    onBlur={() => saveTenantConfig()}
+                    placeholder="contato@salao.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>WhatsApp</Label>
+                  <Input
+                    value={tenant?.whatsapp || ''}
+                    onChange={(e) => updateTenantConfig({ whatsapp: maskPhone(e.target.value) })}
+                    onBlur={() => saveTenantConfig()}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="font-medium mb-4">Endereço</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="col-span-3 space-y-2">
+                  <Label>Logradouro</Label>
+                  <Input
+                    value={tenant?.endereco || ''}
+                    onChange={(e) => updateTenantConfig({ endereco: e.target.value })}
+                    onBlur={() => saveTenantConfig()}
+                    placeholder="Rua, número, bairro"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cidade</Label>
+                  <Input
+                    value={tenant?.cidade || ''}
+                    onChange={(e) => updateTenantConfig({ cidade: e.target.value.toUpperCase() })}
+                    onBlur={() => saveTenantConfig()}
+                    placeholder="Cidade"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="font-medium mb-4">Horário de Funcionamento Padrão</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <Label>Abertura</Label>
+                  <Input
+                    type="time"
+                    value={tenant?.horaAbertura || '08:00'}
+                    onChange={(e) => updateTenantConfig({ horaAbertura: e.target.value })}
+                    onBlur={() => saveTenantConfig()}
+                  />
+                </div>
+                <div>
+                  <Label>Encerramento</Label>
+                  <Input
+                    type="time"
+                    value={tenant?.horaEncerramento || '18:00'}
+                    onChange={(e) => updateTenantConfig({ horaEncerramento: e.target.value })}
+                    onBlur={() => saveTenantConfig()}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="text-red-500">
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Alterar Senha
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Alterar Senha de Acesso</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Digite a nova senha para acessar o sistema.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="py-4">
+                  <Label>Nova Senha</Label>
+                  <Input
+                    type="password"
+                    value={tenant?.senha || ''}
+                    onChange={(e) => updateTenantConfig({ senha: e.target.value })}
+                    placeholder="Digite a nova senha"
+                    className="mt-2"
+                  />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => saveTenantConfig()}>
+                    Salvar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  // =====================================
   // RENDER CONTEÚDO PRINCIPAL
   // =====================================
   const renderContent = () => {
@@ -4376,6 +5400,8 @@ export default function SalonApp() {
     switch (currentView) {
       case 'agenda':
         return renderAgenda();
+      case 'pessoas':
+        return renderPessoas();
       case 'clientes':
         return renderClientes();
       case 'profissionais':
@@ -4394,6 +5420,12 @@ export default function SalonApp() {
         return renderFinanceiro();
       case 'fidelidade':
         return renderFidelidade();
+      case 'agendamentoOnline':
+        return renderAgendamentoOnline();
+      case 'configuracoes':
+        return renderConfiguracoes();
+      case 'manual':
+        return <ConfigAvancadas />;
       case 'bi':
         return renderBITenant();
       default:
@@ -4406,6 +5438,9 @@ export default function SalonApp() {
   // =====================================
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
+      {/* Banner de Versão */}
+      <VersionBanner />
+
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-800 flex items-center justify-between px-4 z-40 shadow-sm">
         <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} className="hover:bg-primary/10">
@@ -4434,7 +5469,7 @@ export default function SalonApp() {
       )}
       
       {/* Main Content */}
-      <main className="lg:ml-64 pt-16 lg:pt-0 p-4 lg:p-6">
+      <main className="lg:ml-56 pt-16 lg:pt-0 p-4 lg:p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold">
             {isMaster ? (
@@ -4444,6 +5479,7 @@ export default function SalonApp() {
               currentView === 'seed' ? 'Popular Base de Dados' : 'Dashboard'
             ) : (
               currentView === 'agenda' ? 'Agenda' :
+              currentView === 'pessoas' ? 'Pessoas' :
               currentView === 'clientes' ? 'Clientes' :
               currentView === 'profissionais' ? 'Profissionais' :
               currentView === 'servicos' ? 'Serviços' :
@@ -4453,6 +5489,9 @@ export default function SalonApp() {
               currentView === 'comissoes' ? 'Comissões' :
               currentView === 'financeiro' ? 'Financeiro' :
               currentView === 'fidelidade' ? 'Programa de Fidelidade' :
+              currentView === 'agendamentoOnline' ? 'Agendamento Online' :
+              currentView === 'configuracoes' ? 'Configurações' :
+              currentView === 'manual' ? 'Manual e NFC-e' :
               currentView === 'bi' ? 'Business Intelligence' : 'Agenda'
             )}
           </h1>
@@ -4877,7 +5916,7 @@ export default function SalonApp() {
                   name="status"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Status</FormLabel>
+                      <FormLabel>Situação</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value || undefined}>
                         <FormControl>
                           <SelectTrigger>
@@ -4898,7 +5937,7 @@ export default function SalonApp() {
                   name="tipoComissao"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tipo Comissão</FormLabel>
+                      <FormLabel>Tipo</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value || undefined}>
                         <FormControl>
                           <SelectTrigger>
@@ -4907,7 +5946,7 @@ export default function SalonApp() {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="percentual">Percentual (%)</SelectItem>
-                          <SelectItem value="fixo_por_servico">Fixo por Serviço (R$)</SelectItem>
+                          <SelectItem value="fixo_por_servico">Fixo (R$)</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -4919,17 +5958,138 @@ export default function SalonApp() {
                   name="percentualComissao"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Valor/Perc. Comissão</FormLabel>
+                      <FormLabel>Valor/Comissão</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                        <Input type="number" step="0.01" value={field.value ?? ''} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+              
+              <Separator className="my-4" />
+              <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-5 h-5 text-purple-600" />
+                    <span className="font-bold text-purple-700 dark:text-purple-300">ACESSO AO SISTEMA</span>
+                  </div>
+                  <FormField
+                    control={profissionalForm.control}
+                    name="acessoAtivo"
+                    render={({ field }) => (
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={field.value ?? false}
+                          onCheckedChange={field.onChange}
+                        />
+                        <Badge className={cn(
+                          field.value ? "bg-green-500 text-white" : "bg-gray-400 text-white"
+                        )}>
+                          {field.value ? 'ATIVADO' : 'BLOQUEADO'}
+                        </Badge>
+                      </div>
+                    )}
+                  />
+                </div>
+                
+                <p className="text-sm text-purple-600 dark:text-purple-400 mb-4">
+                  Configure o acesso do profissional ao sistema. Quando ativado, ele poderá fazer login e gerenciar sua disponibilidade.
+                </p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={profissionalForm.control}
+                    name="loginEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-purple-700 dark:text-purple-300">Email de Login</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="profissional@email.com" {...field} onChange={e => field.onChange(e.target.value?.toLowerCase())} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={profissionalForm.control}
+                    name="loginSenha"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-purple-700 dark:text-purple-300">Senha de Acesso</FormLabel>
+                        <FormControl>
+                          <Input type="text" placeholder="Digite a senha ou deixe vazio" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+              
+              <Separator className="my-4" />
+              <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Scissors className="w-5 h-5 text-green-600" />
+                  <span className="font-bold text-green-700 dark:text-green-300">SERVIÇOS QUE ATENDE</span>
+                </div>
+                <p className="text-sm text-green-600 dark:text-green-400 mb-3">
+                  Selecione os serviços que este profissional está capacitado a realizar.
+                </p>
+                <FormField
+                  control={profissionalForm.control}
+                  name="servicosHabilitados"
+                  render={({ field }) => (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                      {servicos.length === 0 ? (
+                        <p className="text-sm text-muted-foreground col-span-full">
+                          Nenhum serviço cadastrado. Cadastre primeiro em "Serviços".
+                        </p>
+                      ) : (
+                        servicos.map((servico: any) => {
+                          const isSelected = field.value?.includes(servico.nome);
+                          return (
+                            <button
+                              key={servico.id}
+                              type="button"
+                              onClick={() => {
+                                const current = field.value || [];
+                                if (isSelected) {
+                                  field.onChange(current.filter((n: string) => n !== servico.nome));
+                                } else {
+                                  field.onChange([...current, servico.nome]);
+                                }
+                              }}
+                              className={cn(
+                                "flex items-center gap-2 p-2 rounded-lg border text-left text-sm transition-all",
+                                isSelected 
+                                  ? "bg-green-100 border-green-300 text-green-800 dark:bg-green-900/40 dark:border-green-700 dark:text-green-200" 
+                                  : "bg-white border-gray-200 text-gray-600 hover:border-green-300"
+                              )}
+                            >
+                              <div className={cn(
+                                "w-4 h-4 rounded border flex items-center justify-center",
+                                isSelected 
+                                  ? "bg-green-600 border-green-600" 
+                                  : "border-gray-300"
+                              )}>
+                                {isSelected && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                              <span className="truncate">{servico.nome}</span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                />
+                <p className="text-xs text-green-600 mt-2">
+                  {profissionalForm.watch('servicosHabilitados')?.length || 0} de {servicos.length} serviços selecionados
+                </p>
+              </div>
               <DialogFooter>
-                <Button type="submit">Salvar</Button>
+                <Button type="submit">Salvar Profissional</Button>
               </DialogFooter>
             </form>
           </Form>
@@ -5001,109 +6161,43 @@ export default function SalonApp() {
           
           <Form {...agendamentoForm}>
             <form onSubmit={agendamentoForm.handleSubmit(handleSaveAgendamento)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={agendamentoForm.control}
-                  name="data"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} min={editingItem ? undefined : format(new Date(), 'yyyy-MM-dd')} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={agendamentoForm.control}
-                  name="hora"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Hora Início</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              {/* Duração do Serviço */}
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock className="w-5 h-5 text-blue-600" />
-                  <span className="font-semibold text-blue-700 dark:text-blue-400">Tempo de Serviço</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={agendamentoForm.control}
-                    name="duracao"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Duração (minutos)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 30)}
-                            min={5}
-                            step={5}
-                            className="font-bold text-lg"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              {/* 1. Serviço - Define a duração */}
+              <FormField
+                control={agendamentoForm.control}
+                name="servico"
+                render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Horário Término</FormLabel>
-                    <div className="flex h-10 items-center px-3 rounded-md border bg-white dark:bg-gray-800 font-bold text-lg text-green-600">
-                      <Clock className="w-4 h-4 mr-2 text-green-600" />
-                      <span>
-                        {agendamentoForm.watch('hora') && agendamentoForm.watch('duracao')
-                          ? (() => {
-                              const hora = agendamentoForm.watch('hora');
-                              const duracao = agendamentoForm.watch('duracao') || 30;
-                              const [h, m] = hora.split(':').map(Number);
-                              const totalMinutos = h * 60 + m + duracao;
-                              const novaH = Math.floor(totalMinutos / 60) % 24;
-                              const novaM = totalMinutos % 60;
-                              return `${String(novaH).padStart(2, '0')}:${String(novaM).padStart(2, '0')}`;
-                            })()
-                          : '--:--'}
-                      </span>
-                    </div>
+                    <FormLabel>1. Serviço *</FormLabel>
+                    <Select onValueChange={(value) => {
+                      field.onChange(value);
+                      const servico = servicos.find((s: any) => s.nome === value);
+                      if (servico) {
+                        agendamentoForm.setValue('duracao', servico.duracao || 30);
+                      }
+                    }} value={field.value || undefined}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o serviço" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {servicos.map((s: any) => (
+                          <SelectItem key={s.id} value={s.nome}>{s.nome} ({s.duracao || 30} min)</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
                   </FormItem>
-                </div>
-                {/* Botões de duração rápida */}
-                <div className="mt-3">
-                  <span className="text-xs text-muted-foreground mb-2 block">Seleção rápida:</span>
-                  <div className="flex flex-wrap gap-2">
-                    {[15, 30, 45, 60, 90, 120].map((min) => (
-                      <Button
-                        key={min}
-                        type="button"
-                        variant={agendamentoForm.watch('duracao') === min ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => agendamentoForm.setValue('duracao', min)}
-                        className={cn(
-                          "min-w-[60px]",
-                          agendamentoForm.watch('duracao') === min && "bg-blue-600 hover:bg-blue-700"
-                        )}
-                      >
-                        {min} min
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                )}
+              />
+              
+              {/* 2. Cliente */}
               <FormField
                 control={agendamentoForm.control}
                 name="clienteNome"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cliente</FormLabel>
+                    <FormLabel>2. Cliente</FormLabel>
                     <Select onValueChange={(value) => {
                       field.onChange(value);
                       const cliente = clientes.find((c: any) => c.nome === value);
@@ -5133,63 +6227,156 @@ export default function SalonApp() {
                   <FormItem>
                     <FormLabel>Telefone</FormLabel>
                     <FormControl>
-                      <Input placeholder="Preenchimento automático" {...field} readOnly />
+                      <Input placeholder="Preenchimento automático" value={field.value || ''} readOnly />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={agendamentoForm.control}
-                name="servico"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Serviço</FormLabel>
-                    <Select onValueChange={(value) => {
-                      field.onChange(value);
-                      // Preencher duração automaticamente ao selecionar serviço
-                      const servico = servicos.find((s: any) => s.nome === value);
-                      if (servico) {
-                        agendamentoForm.setValue('duracao', servico.duracao || 30);
-                      }
-                    }} value={field.value || undefined}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o serviço" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {servicos.map((s: any) => (
-                          <SelectItem key={s.id} value={s.nome}>{s.nome} ({s.duracao || 30} min)</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              
+              {/* 3. Profissional */}
               <FormField
                 control={agendamentoForm.control}
                 name="profissional"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Profissional</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || undefined}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o profissional" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {profissionais.filter((p: any) => p.status === 'ativo').map((p: any) => (
-                          <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const servicoSelecionado = agendamentoForm.watch('servico');
+                  const profsFiltrados = profissionais.filter((p: any) => {
+                    if (p.status !== 'ativo') return false;
+                    if (!p.servicosHabilitados || p.servicosHabilitados.length === 0) return true;
+                    return p.servicosHabilitados.includes(servicoSelecionado);
+                  });
+                  return (
+                    <FormItem>
+                      <FormLabel>3. Profissional</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || undefined}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={servicoSelecionado ? "Selecione o profissional" : "Selecione um serviço primeiro"} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {profsFiltrados.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground">
+                              {servicoSelecionado 
+                                ? "Nenhum profissional habilitado para este serviço"
+                                : "Selecione um serviço primeiro"}
+                            </div>
+                          ) : (
+                            profsFiltrados.map((p: any) => (
+                              <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {servicoSelecionado && profsFiltrados.length === 0 && (
+                        <p className="text-xs text-orange-600 mt-1">
+                          Nenhum profissional faz este serviço
+                        </p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
+              
+              {/* 4. Data e Hora */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={agendamentoForm.control}
+                  name="data"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>4. Data</FormLabel>
+                      <FormControl>
+                        <Input type="date" value={field.value || ''} onChange={field.onChange} min={editingItem ? undefined : format(new Date(), 'yyyy-MM-dd')} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={agendamentoForm.control}
+                  name="hora"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>5. Hora Início</FormLabel>
+                      <FormControl>
+                        <Input type="time" value={field.value || ''} onChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              {/* Duração e Término */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  <span className="font-semibold text-blue-700 dark:text-blue-400">Tempo de Serviço</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={agendamentoForm.control}
+                    name="duracao"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Duração (min)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            value={field.value ?? 30}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 30)}
+                            min={5}
+                            step={5}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormItem>
+                    <FormLabel>Término às</FormLabel>
+                    <div className="flex h-10 items-center px-3 rounded-md border bg-white dark:bg-gray-800 font-bold text-green-600">
+                      <Clock className="w-4 h-4 mr-2 text-green-600" />
+                      <span>
+                        {agendamentoForm.watch('hora') && agendamentoForm.watch('duracao')
+                          ? (() => {
+                              const hora = agendamentoForm.watch('hora');
+                              const duracao = agendamentoForm.watch('duracao') || 30;
+                              const [h, m] = hora.split(':').map(Number);
+                              const totalMinutos = h * 60 + m + duracao;
+                              const novaH = Math.floor(totalMinutos / 60) % 24;
+                              const novaM = totalMinutos % 60;
+                              return `${String(novaH).padStart(2, '0')}:${String(novaM).padStart(2, '0')}`;
+                            })()
+                          : '--:--'}
+                      </span>
+                    </div>
+                  </FormItem>
+                </div>
+                <div className="mt-3">
+                  <span className="text-xs text-muted-foreground mb-2 block">Duração rápida:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {[15, 30, 45, 60, 90, 120].map((min) => (
+                      <Button
+                        key={min}
+                        type="button"
+                        variant={agendamentoForm.watch('duracao') === min ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => agendamentoForm.setValue('duracao', min)}
+                        className={cn(
+                          "min-w-[60px]",
+                          agendamentoForm.watch('duracao') === min && "bg-blue-600 hover:bg-blue-700"
+                        )}
+                      >
+                        {min}min
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
               <FormField
                 control={agendamentoForm.control}
                 name="status"
@@ -5489,6 +6676,179 @@ export default function SalonApp() {
                   </FormItem>
                 )}
               />
+              <details className="border rounded-lg p-3 bg-orange-50/50 dark:bg-orange-950/20">
+                <summary className="font-medium text-sm cursor-pointer text-orange-700 dark:text-orange-300">
+                  Dados Fiscais para NFC-e (opcional)
+                </summary>
+                <div className="mt-4 space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Preencha apenas se NFC-e estiver habilitado nas configurações avançadas.
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <FormField
+                      control={produtoForm.control}
+                      name="ncm"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">NCM</FormLabel>
+                          <FormControl>
+                            <Input className="h-8 text-sm" placeholder="00000000" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={produtoForm.control}
+                      name="cfop"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">CFOP</FormLabel>
+                          <FormControl>
+                            <Input className="h-8 text-sm" placeholder="5102" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={produtoForm.control}
+                      name="uop"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">Unidade</FormLabel>
+                          <FormControl>
+                            <Input className="h-8 text-sm" placeholder="UN" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={produtoForm.control}
+                      name="cstIcms"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">CST ICMS</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="00">00 - Integral</SelectItem>
+                              <SelectItem value="20">20 - Redução</SelectItem>
+                              <SelectItem value="40">40 - Isenta</SelectItem>
+                              <SelectItem value="41">41 - Não trib.</SelectItem>
+                              <SelectItem value="60">60 - ST</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={produtoForm.control}
+                      name="csosn"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">CSOSN</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="102">102</SelectItem>
+                              <SelectItem value="300">300</SelectItem>
+                              <SelectItem value="400">400</SelectItem>
+                              <SelectItem value="500">500</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={produtoForm.control}
+                      name="cstPis"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">CST PIS</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="01">01</SelectItem>
+                              <SelectItem value="04">04</SelectItem>
+                              <SelectItem value="08">08</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={produtoForm.control}
+                      name="cstCofins"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">CST COFINS</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="01">01</SelectItem>
+                              <SelectItem value="04">04</SelectItem>
+                              <SelectItem value="08">08</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <FormField
+                      control={produtoForm.control}
+                      name="aliquotaIcms"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">ICMS %</FormLabel>
+                          <FormControl>
+                            <Input className="h-8 text-sm" type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={produtoForm.control}
+                      name="aliquotaPis"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">PIS %</FormLabel>
+                          <FormControl>
+                            <Input className="h-8 text-sm" type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={produtoForm.control}
+                      name="aliquotaCofins"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">COFINS %</FormLabel>
+                          <FormControl>
+                            <Input className="h-8 text-sm" type="number" step="0.01" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </details>
               <DialogFooter>
                 <Button type="submit">Salvar Produto</Button>
               </DialogFooter>

@@ -20,6 +20,17 @@ interface Tenant {
   ativo?: boolean;
   logoUrl?: string;
   coresPersonalizadas?: string;
+  agendamentoOnline?: {
+    ativo: boolean;
+    diasDisponiveis: string[];
+    horaInicio: string;
+    horaFim: string;
+    intervaloMinutos: number;
+    permiteCancelamento: boolean;
+    antecedenciaMinimaHoras: number;
+    vagasProfissional?: number;
+    vagasSalao?: number;
+  };
   [key: string]: any;
 }
 
@@ -140,6 +151,7 @@ interface SalonState {
   login: (user: User, tenant: Tenant | null, isMaster: boolean) => void;
   logout: () => void;
   setExpired: (expired: boolean) => void;
+  setTenant: (tenant: Tenant | null) => void;
 
   // Actions - Navigation
   setCurrentView: (view: string) => void;
@@ -246,6 +258,7 @@ export const useSalonStore = create<SalonState>()(
       }),
 
       setExpired: (expired) => set({ isExpired: expired }),
+      setTenant: (tenant) => set({ tenant }),
 
       // Actions - Navigation
       setCurrentView: (view) => set({ currentView: view }),
