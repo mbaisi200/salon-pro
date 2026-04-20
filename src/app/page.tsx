@@ -1821,21 +1821,20 @@ export default function SalonApp() {
             setShowAgendamentoDialog(true);
           }}
         >
-          <span className={cn(
-            "text-xs font-medium block text-right mb-1",
-            isToday ? "text-blue-600 dark:text-blue-400" : "text-gray-400"
-          )}>{d}</span>
-          
-          {config?.ativo && (
-            <div className={cn(
-              "absolute top-1 right-1 text-[10px] px-2 py-0.5 rounded-full font-bold",
-              lotado ? "bg-red-500 text-white" :
-              total > 0 ? "bg-green-500 text-white" :
-              "hidden"
-            )}>
-              {total}/{vagasSalao}
-            </div>
-          )}
+          <div className="flex items-start justify-between">
+            <span className={cn(
+              "text-sm font-semibold",
+              isToday ? "text-blue-600 dark:text-blue-400" : "text-gray-600 dark:text-gray-300"
+            )}>{d}</span>
+            {config?.ativo && total > 0 && (
+              <span className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
+                lotado ? "bg-red-500 text-white" : "bg-green-500 text-white"
+              )}>
+                {total}/{vagasSalao}
+              </span>
+            )}
+          </div>
           
           <div className="space-y-0.5 overflow-hidden">
             {dayAgendamentos.slice(0, 3).map(a => (
